@@ -89,6 +89,7 @@ dependencies = [
     'obstore @ git+https://github.com/developmentseed/obstore@main#subdirectory=obstore',
     'obspec @ git+https://github.com/developmentseed/obspec',
 ]
+features = ["test"]
 
 [tool.hatch.envs.upstream.scripts]
 run-coverage = "pytest --cov-config=pyproject.toml --cov=pkg --cov-report xml --cov=src --junitxml=junit.xml -o junit_family=legacy"
