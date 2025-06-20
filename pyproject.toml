@@ -1,0 +1,118 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/.github",
+  "/docs",
+]
+
+[project]
+name = "obspec-utils"
+dynamic = ["version"]
+description = "Utilities for interacting with object storage, based on obspec"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+keywords = []
+authors = [
+  { name = "Max Jones", email = "14077947+maxrjones@users.noreply.github.com" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+  "obspec",
+  "obstore",
+]
+
+[project.urls]
+Documentation = "https://github.com/virtual-zarr/obspec-utils#readme"
+Issues = "https://github.com/virtual-zarr/obspec-utils/issues"
+Source = "https://github.com/virtual-zarr/obspec-utils"
+
+[project.optional-dependencies]
+test = [
+    "coverage",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-accept",
+    "rich",
+    "mypy",
+    "pytest-xdist",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+    "pip>=25.0.1",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch]
+version.source = "vcs"
+
+[tool.hatch.build]
+hooks.vcs.version-file = "src/obspec_utils/_version.py"
+
+[tool.hatch.envs.types]
+extra-dependencies = [
+  "mypy>=1.0.0",
+]
+[tool.hatch.envs.types.scripts]
+check = "mypy --install-types --non-interactive {args:src/obspec_utils tests}"
+
+
+[tool.hatch.envs.test]
+features = ["test"]
+
+[tool.hatch.envs.test.scripts]
+run-coverage = "pytest --cov-config=pyproject.toml --cov=pkg --cov-report xml --cov=src --junitxml=junit.xml -o junit_family=legacy"
+run-coverage-html = "pytest --cov-config=pyproject.toml --cov=pkg --cov-report html --cov=src"
+run-pytest = "run-coverage --no-cov"
+run-verbose = "run-coverage --verbose"
+run-mypy = "mypy src"
+list-env = "pip list"
+
+[tool.hatch.envs.upstream]
+python = "3.13"
+dependencies = [
+    'obstore @ git+https://github.com/developmentseed/obstore@main#subdirectory=obstore',
+    'obspec @ git+https://github.com/developmentseed/obspec',
+]
+
+[tool.hatch.envs.upstream.scripts]
+run-coverage = "pytest --cov-config=pyproject.toml --cov=pkg --cov-report xml --cov=src --junitxml=junit.xml -o junit_family=legacy"
+run-coverage-html = "pytest --cov-config=pyproject.toml --cov=pkg --cov-report html --cov=src"
+run-pytest = "run-coverage --no-cov"
+run-verbose = "run-coverage --verbose"
+run-mypy = "mypy src"
+list-env = "pip list"
+
+[tool.coverage.run]
+source_pkgs = ["obspec_utils", "tests"]
+branch = true
+parallel = true
+omit = [
+  "src/obspec_utils/__about__.py",
+]
+
+[tool.coverage.paths]
+obspec_utils = ["src/obspec_utils", "*/obspec-utils/src/obspec_utils"]
+tests = ["tests", "*/obspec-utils/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
