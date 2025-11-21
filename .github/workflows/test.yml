@@ -28,24 +28,17 @@ jobs:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0  # grab all branches and tags
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+      with:
+        enable-cache: true
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-        cache: 'pip'
-    - name: Install Hatch
-      run: |
-        python -m pip install --upgrade pip
-        pip install hatch
-    - name: Set Up Hatch Env
-      run: |
-        hatch env create upstream
-        hatch env run -e upstream list-env
     - name: Run Tests
-      env:
-        HYPOTHESIS_PROFILE: ci
       run: |
-        hatch env run --env upstream run-coverage
+        uv run --all-groups pytest --cov-config=pyproject.toml --cov=pkg --cov-report xml --cov=src
     - name: Upload coverage
       uses: codecov/codecov-action@v5
       with:

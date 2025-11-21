@@ -37,7 +37,7 @@ Documentation = "https://github.com/virtual-zarr/obspec-utils#readme"
 Issues = "https://github.com/virtual-zarr/obspec-utils/issues"
 Source = "https://github.com/virtual-zarr/obspec-utils"
 
-[project.optional-dependencies]
+[dependency-groups]
 test = [
     "coverage",
     "pytest",
@@ -47,12 +47,18 @@ test = [
     "rich",
     "mypy",
     "pytest-xdist",
+    "minio",
 ]
-
-[dependency-groups]
+xarray = [
+  "xarray",
+  "h5netcdf",
+]
+fsspec = [
+  "s3fs",
+  "fsspec",
+]
 dev = [
     "ipykernel>=6.29.5",
-    "pip>=25.0.1",
 ]
 
 [tool.hatch.metadata]
@@ -63,41 +69,6 @@ version.source = "vcs"
 
 [tool.hatch.build]
 hooks.vcs.version-file = "src/obspec_utils/_version.py"
-
-[tool.hatch.envs.types]
-extra-dependencies = [
-  "mypy>=1.0.0",
-]
-[tool.hatch.envs.types.scripts]
-check = "mypy --install-types --non-interactive {args:src/obspec_utils tests}"
-
-
-[tool.hatch.envs.test]
-features = ["test"]
-
-[tool.hatch.envs.test.scripts]
-run-coverage = "pytest --cov-config=pyproject.toml --cov=pkg --cov-report xml --cov=src --junitxml=junit.xml -o junit_family=legacy"
-run-coverage-html = "pytest --cov-config=pyproject.toml --cov=pkg --cov-report html --cov=src"
-run-pytest = "run-coverage --no-cov"
-run-verbose = "run-coverage --verbose"
-run-mypy = "mypy src"
-list-env = "pip list"
-
-[tool.hatch.envs.upstream]
-python = "3.13"
-dependencies = [
-    'obstore @ git+https://github.com/developmentseed/obstore@main#subdirectory=obstore',
-    'obspec @ git+https://github.com/developmentseed/obspec',
-]
-features = ["test"]
-
-[tool.hatch.envs.upstream.scripts]
-run-coverage = "pytest --cov-config=pyproject.toml --cov=pkg --cov-report xml --cov=src --junitxml=junit.xml -o junit_family=legacy"
-run-coverage-html = "pytest --cov-config=pyproject.toml --cov=pkg --cov-report html --cov=src"
-run-pytest = "run-coverage --no-cov"
-run-verbose = "run-coverage --verbose"
-run-mypy = "mypy src"
-list-env = "pip list"
 
 [tool.coverage.run]
 source_pkgs = ["obspec_utils", "tests"]
