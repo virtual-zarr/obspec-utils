@@ -8,6 +8,8 @@ if TYPE_CHECKING:
     from obstore import ReadableFile
     from obstore.store import ObjectStore
 
+from obstore.store import MemoryStore
+
 
 class ObstoreReader:
     _reader: ReadableFile
@@ -40,3 +42,30 @@ class ObstoreReader:
 
     def tell(self) -> int:
         return self._reader.tell()
+
+
+class ObstoreMemCacheReader(ObstoreReader):
+    _reader: ReadableFile
+    _memstore: MemoryStore
+
+    def __init__(self, store: ObjectStore, path: str) -> None:
+        """
+        Create an obstore file reader that caches the specified path
+        in a MemoryStore then performs reads from the file in memory.
+
+        This reader loads the entire file into memory first, which can be beneficial
+        for files that will be read multiple times or when you want to avoid repeated
+        network requests to the original store.
+
+        Parameters
+        ----------
+        store
+            [ObjectStore][obstore.store.ObjectStore] for reading the file.
+        path
+            The path to the file within the store. This should not include the prefix.
+        """
+        self._memstore = MemoryStore()
+        buffer = store.get(path).bytes()
+        self._memstore.put(path, buffer)
+
+        self._reader = obs.open_reader(self._memstore, path)
