@@ -14,7 +14,9 @@ from obstore.store import MemoryStore
 class ObstoreReader:
     _reader: ReadableFile
 
-    def __init__(self, store: ObjectStore, path: str) -> None:
+    def __init__(
+        self, store: ObjectStore, path: str, buffer_size: int = 1024 * 1024
+    ) -> None:
         """
         Create an obstore file reader that implements the read, readall, seek, and tell methods, which
         can be used in libraries that expect file-like objects.
@@ -27,8 +29,10 @@ class ObstoreReader:
             [ObjectStore][obstore.store.ObjectStore] for reading the file.
         path
             The path to the file within the store. This should not include the prefix.
+        buffer_size
+            The minimum number of bytes to read in a single request. Up to buffer_size bytes will be buffered in memory.
         """
-        self._reader = obs.open_reader(store, path)
+        self._reader = obs.open_reader(store, path, buffer_size=buffer_size)
 
     def read(self, size: int, /) -> bytes:
         return self._reader.read(size).to_bytes()
