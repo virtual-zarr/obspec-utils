@@ -12,10 +12,17 @@
 
 ## Installation
 
+```bash
+python -m pip install obspec-utils
+```
+
+## Setup development environment
+
 ```console
 git clone https://github.com/virtual-zarr/obspec-utils.git
 cd obspec-utils
-hatch env create
+uv sync --all-groups
+uv run --all-groups pytest --cov-config=pyproject.toml --cov=pkg --cov-report xml --cov=src
 ```
 
 ## License
