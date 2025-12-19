@@ -5,24 +5,35 @@ Based on https://docs.rs/object_store/0.12.2/src/object_store/registry.rs.html#1
 from __future__ import annotations
 
 from collections import namedtuple
-from typing import TYPE_CHECKING, Dict, Iterator, Optional, Tuple, TypeAlias
+from typing import TYPE_CHECKING, Dict, Iterator, Optional, Tuple
 from urllib.parse import urlparse
+
+from obspec_utils.typing import Path, Url
 
 if TYPE_CHECKING:
     from obstore.store import (
         ObjectStore,
     )
 
-Url: TypeAlias = str
-Path: TypeAlias = str
-
 UrlKey = namedtuple("UrlKey", ["scheme", "netloc"])
+"""
+A named tuple containing a URL's scheme and authority/netloc.
+
+Used as the primary key in ObjectStoreRegistry.map.
+
+Attributes
+----------
+scheme
+    The URL scheme (e.g., 's3', 'https', 'file').
+netloc
+    The network location/authority (e.g., 'bucket-name', 'example.com').
+"""
 
 
 def get_url_key(url: Url) -> UrlKey:
     """
     Generate the UrlKey containing a url's scheme and authority/netloc that is used a the
-    primary key's in a [ObjectStoreRegistry.map][virtualizarr.registry.ObjectStoreRegistry.map]
+    primary key's in a [ObjectStoreRegistry.map][obspec_utils.ObjectStoreRegistry.map]
 
     Parameters
     ----------
@@ -101,15 +112,15 @@ class ObjectStoreRegistry:
         Parameters
         ----------
         stores
-            Mapping of [Url][virtualizarr.registry.Url] to the [ObjectStore][obstore.store.ObjectStore]
-            to be registered under the [Url][virtualizarr.registry.Url].
+            Mapping of [Url][obspec_utils.typing.Url] to the [ObjectStore][obstore.store.ObjectStore]
+            to be registered under the [Url][obspec_utils.typing.Url].
 
         Examples
         --------
 
         ```python exec="on" source="above" session="registry-examples"
         from obstore.store import S3Store
-        from virtualizarr.registry import ObjectStoreRegistry
+        from obspec_utils import ObjectStoreRegistry
 
         s3store = S3Store(bucket="my-bucket-1", prefix="orig-path")
         reg = ObjectStoreRegistry({"s3://my-bucket-1": s3store})
@@ -127,24 +138,24 @@ class ObjectStoreRegistry:
 
     def register(self, url: Url, store: ObjectStore) -> None:
         """
-        Register a new store for the provided store [Url][virtualizarr.registry.Url].
+        Register a new store for the provided store [Url][obspec_utils.typing.Url].
 
-        If a store with the same [Url][virtualizarr.registry.Url]  existed before, it is replaced.
+        If a store with the same [Url][obspec_utils.typing.Url]  existed before, it is replaced.
 
         Parameters
         ----------
         url
-            [Url][virtualizarr.registry.Url] to registry the [ObjectStore][obstore.store.ObjectStore] under.
+            [Url][obspec_utils.typing.Url] to registry the [ObjectStore][obstore.store.ObjectStore] under.
         store
             [ObjectStore][obstore.store.ObjectStore] instance to register using the
-            provided [Url][virtualizarr.registry.Url].
+            provided [Url][obspec_utils.typing.Url].
 
         Examples
         --------
 
         ```python exec="on" source="above" session="registry-examples"
         from obstore.store import S3Store
-        from virtualizarr.registry import ObjectStoreRegistry
+        from obspec_utils import ObjectStoreRegistry
 
         reg = ObjectStoreRegistry()
         orig_store = S3Store(bucket="my-bucket-1", prefix="orig-path")
@@ -173,9 +184,9 @@ class ObjectStoreRegistry:
 
     def resolve(self, url: Url) -> Tuple[ObjectStore, Path]:
         """
-        Resolve an URL within the [ObjectStoreRegistry][virtualizarr.registry.ObjectStoreRegistry].
+        Resolve an URL within the [ObjectStoreRegistry][obspec_utils.ObjectStoreRegistry].
 
-        If [ObjectStoreRegistry.register][virtualizarr.registry.ObjectStoreRegistry.register] has been called
+        If [ObjectStoreRegistry.register][obspec_utils.ObjectStoreRegistry.register] has been called
         with a URL with the same scheme and authority/netloc as the object URL, and a path that is a prefix
         of the provided url's, it is returned along with the trailing path. Paths are matched on a
         path segment basis, and in the event of multiple possibilities the longest path match is used.
@@ -183,7 +194,7 @@ class ObjectStoreRegistry:
         Parameters
         ----------
         url
-            Url to resolve in the [ObjectStoreRegistry][virtualizarr.registry.ObjectStoreRegistry]
+            Url to resolve in the [ObjectStoreRegistry][obspec_utils.ObjectStoreRegistry]
 
         Returns
         -------
@@ -191,12 +202,12 @@ class ObjectStoreRegistry:
             The [ObjectStore][obstore.store.ObjectStore] stored at the resolved url.
         Path
             The trailing portion of the url after the prefix of the matching store in the
-            [ObjectStoreRegistry][virtualizarr.registry.ObjectStoreRegistry].
+            [ObjectStoreRegistry][obspec_utils.ObjectStoreRegistry].
 
         Raises
         ------
         ValueError
-            If the URL cannot be resolved, meaning that [ObjectStoreRegistry.register][virtualizarr.registry.ObjectStoreRegistry.register]
+            If the URL cannot be resolved, meaning that [ObjectStoreRegistry.register][obspec_utils.ObjectStoreRegistry.register]
             has not been called with a URL with the same scheme and authority/netloc as the object URL, and a path that is a prefix
             of the provided url's.
 
@@ -205,7 +216,7 @@ class ObjectStoreRegistry:
 
         ```python exec="on" source="above" session="registry-resolve-examples"
         from obstore.store import MemoryStore, S3Store
-        from virtualizarr.registry import ObjectStoreRegistry
+        from obspec_utils import ObjectStoreRegistry
 
         registry = ObjectStoreRegistry()
         memstore1 = MemoryStore()
