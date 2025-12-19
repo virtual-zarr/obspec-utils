@@ -83,3 +83,5 @@ junit.xml
 .DS_Store
 tests/.hypothesis
 .hypothesis/
+
+site/*
