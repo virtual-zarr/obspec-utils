@@ -1,0 +1,66 @@
+{
+  "local": {
+    "environment": "local",
+    "description": "Local machine",
+    "n_files": 5,
+    "timestamp": "2025-12-19 17:41:11",
+    "timings": {
+      "fsspec_default_cache": {
+        "open": 278.9289269580004,
+        "spatial_subset_load": 0.01783616700049606,
+        "time_slice_load": 120.8567786249987,
+        "timeseries_load": 0.0270211669994751,
+        "total": 399.83056291699904
+      },
+      "fsspec_block_cache": {
+        "open": 41.593530750000355,
+        "spatial_subset_load": 0.013234292000561254,
+        "time_slice_load": 3.684706666001148,
+        "timeseries_load": 2.232457792000787,
+        "total": 47.52392950000285
+      },
+      "obstore_reader": {
+        "open": 73.77926016699712,
+        "spatial_subset_load": 0.6722390420000011,
+        "time_slice_load": 27.978767083001003,
+        "timeseries_load": 2.128492916999676,
+        "total": 104.5587592089978
+      },
+      "obstore_eager": {
+        "open": 137.93904283400116,
+        "spatial_subset_load": 0.025063291999686044,
+        "time_slice_load": 1.0478867909987457,
+        "timeseries_load": 0.02721483400091529,
+        "total": 139.0392077510005
+      },
+      "obstore_prefetch": {
+        "open": 22.70367158299996,
+        "spatial_subset_load": 0.2600817500024277,
+        "time_slice_load": 12.648685750002187,
+        "timeseries_load": 1.6537993339989043,
+        "total": 37.26623841700348
+      },
+      "obstore_parallel": {
+        "open": 14.851732625000295,
+        "spatial_subset_load": 0.42988983299801475,
+        "time_slice_load": 9.5801755829998,
+        "timeseries_load": 1.1358166659993003,
+        "total": 25.99761470699741
+      },
+      "obstore_hybrid": {
+        "open": 14.648422333997587,
+        "spatial_subset_load": 0.46534970799984876,
+        "time_slice_load": 9.89927154200268,
+        "timeseries_load": 1.2309044579997135,
+        "total": 26.24394804199983
+      },
+      "virtualzarr_icechunk": {
+        "open": 2.2793160830005945,
+        "spatial_subset_load": 2.765376625000499,
+        "time_slice_load": 4.176158291997126,
+        "timeseries_load": 0.6269212090010114,
+        "total": 9.847772208999231
+      }
+    }
+  }
+}

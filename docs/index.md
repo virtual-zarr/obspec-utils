@@ -8,7 +8,12 @@ Utilities for interacting with object storage, based on [obspec](https://github.
 
 1. **ObjectStoreRegistry**: A registry for managing multiple object stores, allowing you to resolve URLs to the appropriate store and path. This is particularly useful when working with datasets that span multiple storage backends or buckets.
 
-2. **File Handlers**: Wrappers around obstore's file reading capabilities that provide a familiar file-like interface, making it easy to integrate with libraries that expect standard Python file objects.
+2. **File Handlers**: Wrappers around obstore's file reading capabilities that provide a familiar file-like interface, making it easy to integrate with libraries that expect standard Python file objects:
+    - `ObstoreReader`: Basic reader with buffered reads
+    - `ObstoreEagerReader`: Eagerly loads entire file into memory
+    - `ObstorePrefetchReader`: Background prefetching for sequential reads
+    - `ObstoreParallelReader`: Parallel range fetching for random access
+    - `ObstoreHybridReader`: Combines exponential readahead with parallel fetching
 
 ## Getting started
 
@@ -42,8 +47,9 @@ store, path = registry.resolve("s3://my-bucket/my-data/file.nc")
 The file handlers provide file-like interfaces for reading from object stores:
 
 ```python
+import xarray as xr
 from obstore.store import S3Store
-from obspec_utils import ObstoreReader, ObstoreMemCacheReader
+from obspec_utils import ObstoreReader, ObstoreEagerReader, ObstoreHybridReader
 
 store = S3Store(bucket="my-bucket")
 
@@ -52,9 +58,15 @@ reader = ObstoreReader(store, "path/to/file.bin", buffer_size=1024*1024)
 data = reader.read(100)  # Read 100 bytes
 
 # Memory-cached reader for repeated access
-cached_reader = ObstoreMemCacheReader(store, "path/to/file.bin")
+cached_reader = ObstoreEagerReader(store, "path/to/file.bin")
 data = cached_reader.readall()  # Read entire file from memory cache
+
+# Hybrid reader for HDF5/NetCDF files (recommended for xarray)
+with ObstoreHybridReader(store, "path/to/file.nc") as reader:
+    ds = xr.open_dataset(reader, engine="h5netcdf")
 ```
+
+See the [Benchmark](benchmark.md) page for performance comparisons between the different readers.
 
 ## Contributing
 
