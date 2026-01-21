@@ -16,7 +16,7 @@ nav:
   - "index.md"
   - "API":
       - Typing: "api/typing.md"
-      - Aiohttp ReadableStores: "api/aiohttp.md"
+      - Aiohttp Adapters: "api/aiohttp.md"
       - Obspec File Readers: "api/obspec.md"
       - Obstore File Readers: "api/obstore.md"
       - Store Registries: "api/registry.md"
