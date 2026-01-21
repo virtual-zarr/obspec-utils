@@ -62,6 +62,57 @@ data = cached_reader.readall()  # Read entire file from memory cache
 2. Install development dependencies: `uv sync --all-groups`
 3. Run the test suite: `uv run --all-groups pytest`
 
+### Code standards - using prek
+
+> [!NOTE]
+> These instructions are replicated from [zarr-python](https://github.com/zarr-developers/zarr-python).
+
+All code must conform to the PEP8 standard. Regarding line length, lines up to 100 characters are allowed, although please try to keep under 90 wherever possible.
+
+`Obspec-utils` uses a set of git hooks managed by [`prek`](https://github.com/j178/prek), a fast, Rust-based pre-commit hook manager that is fully compatible with `.pre-commit-config.yaml` files. `prek` can be installed locally by running:
+
+```bash
+uv tool install prek
+```
+
+or:
+
+```bash
+pip install prek
+```
+
+The hooks can be installed locally by running:
+
+```bash
+prek install
+```
+
+This would run the checks every time a commit is created locally. The checks will by default only run on the files modified by a commit, but the checks can be triggered for all the files by running:
+
+```bash
+prek run --all-files
+```
+
+You can also run hooks only for files in a specific directory:
+
+```bash
+prek run --directory src/obspec_utils
+```
+
+Or run hooks for files changed in the last commit:
+
+```bash
+prek run --last-commit
+```
+
+To list all available hooks:
+
+```bash
+prek list
+```
+
+If you would like to skip the failing checks and push the code for further discussion, use the `--no-verify` option with `git commit`.
+
 ## License
 
 `obspec-utils` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.
