@@ -75,16 +75,6 @@ store, path = registry.resolve("https://thredds.example.com/data/file.nc")
 data = await store.get_range_async(path, start=0, end=1000)
 ```
 
-### Choosing the Right Backend
-
-| Use Case | Recommended Backend |
-|----------|-------------------|
-| S3, GCS, Azure Blob Storage | obstore (S3Store, GCSStore, AzureStore) |
-| S3-compatible storage (MinIO, etc.) | obstore S3Store |
-| WebDAV servers | obstore HTTPStore |
-| Generic HTTPS (THREDDS, NASA data) | AiohttpStore or custom implementation |
-| Local filesystem | obstore LocalStore |
-
 ### File Handlers
 
 The file handlers provide file-like interfaces (read, seek, tell) for reading from object stores.
