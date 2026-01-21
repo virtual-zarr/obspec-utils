@@ -68,7 +68,9 @@ def test_registry_with_custom_readable_store():
                 end = start + length
             return self._data[start:end]
 
-        def get_ranges(self, path, *, starts, ends=None, lengths=None) -> Sequence[bytes]:
+        def get_ranges(
+            self, path, *, starts, ends=None, lengths=None
+        ) -> Sequence[bytes]:
             if ends is None:
                 ends = [s + ln for s, ln in zip(starts, lengths)]
             return [self._data[s:e] for s, e in zip(starts, ends)]
@@ -93,7 +95,13 @@ def test_registry_with_custom_readable_store():
 
         @property
         def meta(self):
-            return {"path": "", "last_modified": None, "size": len(self._data), "e_tag": None, "version": None}
+            return {
+                "path": "",
+                "last_modified": None,
+                "size": len(self._data),
+                "e_tag": None,
+                "version": None,
+            }
 
         @property
         def range(self):
@@ -115,7 +123,13 @@ def test_registry_with_custom_readable_store():
 
         @property
         def meta(self):
-            return {"path": "", "last_modified": None, "size": len(self._data), "e_tag": None, "version": None}
+            return {
+                "path": "",
+                "last_modified": None,
+                "size": len(self._data),
+                "e_tag": None,
+                "version": None,
+            }
 
         @property
         def range(self):
