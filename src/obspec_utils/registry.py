@@ -74,6 +74,13 @@ class PathEntry:
         self.store: Optional[ReadableStore] = None
         self.children: Dict[str, "PathEntry"] = {}
 
+    def iter_stores(self) -> Iterator[ReadableStore]:
+        """Iterate over all stores in this entry and its children."""
+        if self.store is not None:
+            yield self.store
+        for child in self.children.values():
+            yield from child.iter_stores()
+
     def lookup(self, to_resolve: str) -> Optional[Tuple[ReadableStore, int]]:
         """
         Lookup a store based on URL path
@@ -98,6 +105,37 @@ class PathEntry:
 
 
 class ObjectStoreRegistry:
+    """
+    A registry that maps URLs to object stores.
+
+    The registry can be used as an async context manager to automatically manage
+    the lifecycle of stores that support it (like AiohttpStore). Stores that don't
+    implement the async context manager protocol (like obstore's S3Store) are
+    unaffected.
+
+    Examples
+    --------
+
+    Using as an async context manager with mixed store types:
+
+    ```python
+    from obstore.store import S3Store
+    from obspec_utils import ObjectStoreRegistry
+    from obspec_utils.aiohttp import AiohttpStore
+
+    registry = ObjectStoreRegistry({
+        "s3://my-bucket": S3Store(bucket="my-bucket"),
+        "https://example.com": AiohttpStore("https://example.com"),
+    })
+
+    async with registry:
+        # S3Store works as-is, AiohttpStore session is opened
+        store, path = registry.resolve("https://example.com/file.nc")
+        data = await store.get_range_async(path, start=0, end=1000)
+    # AiohttpStore session is closed automatically
+    ```
+    """
+
     def __init__(self, stores: dict[Url, ReadableStore] | None = None) -> None:
         """
         Create a new store registry that matches the provided Urls and
@@ -281,6 +319,55 @@ class ObjectStoreRegistry:
                     path_after_prefix = path.lstrip("/")
                 return store, path_after_prefix
         raise ValueError(f"Could not find an ObjectStore matching the url `{url}`")
+
+    def _iter_stores(self) -> Iterator[ReadableStore]:
+        """Iterate over all registered stores."""
+        for entry in self.map.values():
+            yield from entry.iter_stores()
+
+    async def __aenter__(self) -> "ObjectStoreRegistry":
+        """
+        Enter the async context manager, opening all stores that support it.
+
+        Stores that implement the async context manager protocol (like AiohttpStore)
+        will have their sessions initialized. Stores that don't support it (like
+        obstore's S3Store) are unaffected.
+
+        Examples
+        --------
+
+        ```python
+        from obstore.store import S3Store
+        from obspec_utils import ObjectStoreRegistry
+        from obspec_utils.aiohttp import AiohttpStore
+
+        registry = ObjectStoreRegistry({
+            "s3://my-bucket": S3Store(bucket="my-bucket"),
+            "https://example.com": AiohttpStore("https://example.com"),
+        })
+
+        async with registry:
+            # S3Store works as-is, AiohttpStore session is opened
+            store, path = registry.resolve("https://example.com/file.nc")
+            data = await store.get_range_async(path, start=0, end=1000)
+        # AiohttpStore session is closed
+        ```
+        """
+        for store in self._iter_stores():
+            if hasattr(store, "__aenter__"):
+                await store.__aenter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """
+        Exit the async context manager, closing all stores that support it.
+
+        Stores that implement the async context manager protocol will have their
+        resources cleaned up. Stores that don't support it are unaffected.
+        """
+        for store in self._iter_stores():
+            if hasattr(store, "__aexit__"):
+                await store.__aexit__(exc_type, exc_val, exc_tb)
 
 
 def path_segments(path: str) -> Iterator[str]:

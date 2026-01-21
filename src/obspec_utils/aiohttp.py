@@ -12,15 +12,14 @@ Example
 from obspec_utils import ObjectStoreRegistry
 from obspec_utils.aiohttp import AiohttpStore
 
-# Create a store for a specific base URL
-store = AiohttpStore("https://example.com/data")
+# Use the store as an async context manager for efficient session reuse
+async with AiohttpStore("https://example.com/data") as store:
+    # Register it with the registry
+    registry = ObjectStoreRegistry({"https://example.com/data": store})
 
-# Register it with the registry
-registry = ObjectStoreRegistry({"https://example.com/data": store})
-
-# Now VirtualiZarr can use this store for HTTP access
-store, path = registry.resolve("https://example.com/data/file.nc")
-data = await store.get_range_async(path, start=0, end=1000)
+    # Now VirtualiZarr can use this store for HTTP access
+    resolved_store, path = registry.resolve("https://example.com/data/file.nc")
+    data = await resolved_store.get_range_async(path, start=0, end=1000)
 ```
 """
 
@@ -136,6 +135,9 @@ class AiohttpStore:
     - NASA data access from outside AWS regions
     - Any generic HTTP endpoint that doesn't need S3-like semantics
 
+    The store should be used as an async context manager to efficiently reuse
+    a single HTTP session across multiple requests.
+
     Parameters
     ----------
     base_url
@@ -148,30 +150,34 @@ class AiohttpStore:
     Examples
     --------
 
-    Basic usage:
+    Recommended usage with async context manager:
+
+    ```python
+    async with AiohttpStore("https://example.com/data") as store:
+        # All requests share the same session
+        result = await store.get_async("file.nc")
+        data = await result.buffer_async()
+
+        # Byte range requests
+        chunk = await store.get_range_async("file.nc", start=0, end=1000)
+    ```
+
+    Synchronous usage (creates a session per request):
 
     ```python
     store = AiohttpStore("https://example.com/data")
-
-    # Synchronous get (runs async internally)
     result = store.get("file.nc")
     data = result.buffer()
-
-    # Async get
-    result = await store.get_async("file.nc")
-    data = await result.buffer_async()
-
-    # Byte range requests
-    chunk = await store.get_range_async("file.nc", start=0, end=1000)
     ```
 
     With authentication:
 
     ```python
-    store = AiohttpStore(
+    async with AiohttpStore(
         "https://api.example.com/data",
         headers={"Authorization": "Bearer <token>"}
-    )
+    ) as store:
+        result = await store.get_async("protected/file.nc")
     ```
     """
 
@@ -185,6 +191,21 @@ class AiohttpStore:
         self.base_url = base_url.rstrip("/")
         self.headers = headers or {}
         self.timeout = aiohttp.ClientTimeout(total=timeout)
+        self._session: aiohttp.ClientSession | None = None
+
+    async def __aenter__(self) -> "AiohttpStore":
+        """Enter the async context manager, creating a reusable session."""
+        self._session = aiohttp.ClientSession(
+            timeout=self.timeout,
+            headers=self.headers,
+        )
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit the async context manager, closing the session."""
+        if self._session is not None:
+            await self._session.close()
+            self._session = None
 
     def _build_url(self, path: str) -> str:
         """Build the full URL from base URL and path."""
@@ -244,6 +265,49 @@ class AiohttpStore:
 
     # --- Async methods (primary implementation) ---
 
+    async def _do_get_async(
+        self,
+        session: aiohttp.ClientSession,
+        path: str,
+        *,
+        options: GetOptions | None = None,
+    ) -> AiohttpGetResultAsync:
+        """Internal method that performs the actual GET request."""
+        url = self._build_url(path)
+        request_headers = {} if self._session else dict(self.headers)
+
+        # Handle range option if specified
+        byte_range = (0, 0)
+        if options and "range" in options:
+            range_opt = options["range"]
+            if isinstance(range_opt, tuple):
+                start, end = range_opt[0], range_opt[1]
+                request_headers["Range"] = f"bytes={start}-{end - 1}"
+                byte_range = (start, end)
+            elif isinstance(range_opt, dict):
+                if "offset" in range_opt:
+                    request_headers["Range"] = f"bytes={range_opt['offset']}-"
+                elif "suffix" in range_opt:
+                    request_headers["Range"] = f"bytes=-{range_opt['suffix']}"
+
+        async with session.get(url, headers=request_headers) as response:
+            response.raise_for_status()
+            data = await response.read()
+            meta = self._parse_meta_from_headers(
+                path, dict(response.headers), len(data)
+            )
+            attrs = self._parse_attributes_from_headers(dict(response.headers))
+
+            if byte_range == (0, 0):
+                byte_range = (0, len(data))
+
+            return AiohttpGetResultAsync(
+                _data=data,
+                _meta=meta,
+                _attributes=attrs,
+                _range=byte_range,
+            )
+
     async def get_async(
         self,
         path: str,
@@ -265,41 +329,32 @@ class AiohttpStore:
         AiohttpGetResultAsync
             Result object with buffer_async() method and metadata.
         """
+        if self._session is not None:
+            return await self._do_get_async(self._session, path, options=options)
+
+        # Fallback: create a temporary session for this request
+        async with aiohttp.ClientSession(
+            timeout=self.timeout, headers=self.headers
+        ) as session:
+            return await self._do_get_async(session, path, options=options)
+
+    async def _do_get_range_async(
+        self,
+        session: aiohttp.ClientSession,
+        path: str,
+        *,
+        start: int,
+        end: int,
+    ) -> bytes:
+        """Internal method that performs the actual range GET request."""
         url = self._build_url(path)
-        request_headers = dict(self.headers)
+        request_headers = {} if self._session else dict(self.headers)
+        # HTTP Range is inclusive on both ends, obspec end is exclusive
+        request_headers["Range"] = f"bytes={start}-{end - 1}"
 
-        # Handle range option if specified
-        byte_range = (0, 0)
-        if options and "range" in options:
-            range_opt = options["range"]
-            if isinstance(range_opt, tuple):
-                start, end = range_opt[0], range_opt[1]
-                request_headers["Range"] = f"bytes={start}-{end - 1}"
-                byte_range = (start, end)
-            elif isinstance(range_opt, dict):
-                if "offset" in range_opt:
-                    request_headers["Range"] = f"bytes={range_opt['offset']}-"
-                elif "suffix" in range_opt:
-                    request_headers["Range"] = f"bytes=-{range_opt['suffix']}"
-
-        async with aiohttp.ClientSession(timeout=self.timeout) as session:
-            async with session.get(url, headers=request_headers) as response:
-                response.raise_for_status()
-                data = await response.read()
-                meta = self._parse_meta_from_headers(
-                    path, dict(response.headers), len(data)
-                )
-                attrs = self._parse_attributes_from_headers(dict(response.headers))
-
-                if byte_range == (0, 0):
-                    byte_range = (0, len(data))
-
-                return AiohttpGetResultAsync(
-                    _data=data,
-                    _meta=meta,
-                    _attributes=attrs,
-                    _range=byte_range,
-                )
+        async with session.get(url, headers=request_headers) as response:
+            response.raise_for_status()
+            return await response.read()
 
     async def get_range_async(
         self,
@@ -333,15 +388,16 @@ class AiohttpStore:
         if end is None:
             end = start + length  # type: ignore[operator]
 
-        url = self._build_url(path)
-        request_headers = dict(self.headers)
-        # HTTP Range is inclusive on both ends, obspec end is exclusive
-        request_headers["Range"] = f"bytes={start}-{end - 1}"
+        if self._session is not None:
+            return await self._do_get_range_async(
+                self._session, path, start=start, end=end
+            )
 
-        async with aiohttp.ClientSession(timeout=self.timeout) as session:
-            async with session.get(url, headers=request_headers) as response:
-                response.raise_for_status()
-                return await response.read()
+        # Fallback: create a temporary session for this request
+        async with aiohttp.ClientSession(
+            timeout=self.timeout, headers=self.headers
+        ) as session:
+            return await self._do_get_range_async(session, path, start=start, end=end)
 
     async def get_ranges_async(
         self,
@@ -375,11 +431,23 @@ class AiohttpStore:
         if ends is None:
             ends = [s + ln for s, ln in zip(starts, lengths)]  # type: ignore[arg-type]
 
-        # Fetch all ranges concurrently
-        tasks = [
-            self.get_range_async(path, start=s, end=e) for s, e in zip(starts, ends)
-        ]
-        return await asyncio.gather(*tasks)
+        if self._session is not None:
+            # Use managed session for all concurrent requests
+            tasks = [
+                self._do_get_range_async(self._session, path, start=s, end=e)
+                for s, e in zip(starts, ends)
+            ]
+            return await asyncio.gather(*tasks)
+
+        # Fallback: create a single temporary session for all requests
+        async with aiohttp.ClientSession(
+            timeout=self.timeout, headers=self.headers
+        ) as session:
+            tasks = [
+                self._do_get_range_async(session, path, start=s, end=e)
+                for s, e in zip(starts, ends)
+            ]
+            return await asyncio.gather(*tasks)
 
     # --- Sync methods (wrap async) ---
 
