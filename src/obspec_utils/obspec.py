@@ -1,13 +1,72 @@
 from __future__ import annotations
 
 import io
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from obstore import ReadableFile
-    from obstore.store import ObjectStore
 
-    from obspec_utils.typing import ReadableStore
+from typing import Protocol, runtime_checkable
+
+from obspec import (
+    Get,
+    GetAsync,
+    GetRange,
+    GetRangeAsync,
+    GetRanges,
+    GetRangesAsync,
+)
+
+
+@runtime_checkable
+class ReadableStore(
+    Get,
+    GetAsync,
+    GetRange,
+    GetRangeAsync,
+    GetRanges,
+    GetRangesAsync,
+    Protocol,
+):
+    """
+    A minimal protocol for read-only object storage access.
+
+    This protocol defines the intersection of obspec protocols required for
+    read-only operations like those used by VirtualiZarr. Any object that
+    implements these methods can be used with ObjectStoreRegistry.
+
+    The protocol includes:
+    - `get` / `get_async`: Download entire files
+    - `get_range` / `get_range_async`: Download a single byte range
+    - `get_ranges` / `get_ranges_async`: Download multiple byte ranges efficiently
+
+    This allows backends like obstore (S3Store, HTTPStore, etc.), aiohttp wrappers,
+    or any custom implementation to be used interchangeably.
+
+    Examples
+    --------
+
+    Using with obstore:
+
+    ```python
+    from obstore.store import S3Store
+    from obspec_utils.registry import ObjectStoreRegistry
+
+    # S3Store implements ReadableStore protocol
+    store = S3Store(bucket="my-bucket")
+    registry = ObjectStoreRegistry({"s3://my-bucket": store})
+    ```
+
+    Using with a custom aiohttp wrapper:
+
+    ```python
+    from obspec_utils.registry import ObjectStoreRegistry
+    from obspec_utils.aiohttp import AiohttpStore
+
+    # AiohttpStore implements ReadableStore protocol
+    store = AiohttpStore("https://example.com/data")
+    registry = ObjectStoreRegistry({"https://example.com/data": store})
+    ```
+    """
+
+    pass
 
 
 # Protocol-based readers (work with any ReadableStore implementation)
@@ -34,7 +93,7 @@ class StoreReader:
         Parameters
         ----------
         store
-            Any object implementing the [ReadableStore][obspec_utils.ReadableStore] protocol.
+            Any object implementing the [ReadableStore][obspec_utils.obspec.ReadableStore] protocol.
         path
             The path to the file within the store.
         buffer_size
@@ -178,7 +237,7 @@ class StoreMemCacheReader:
         Parameters
         ----------
         store
-            Any object implementing the [ReadableStore][obspec_utils.ReadableStore] protocol.
+            Any object implementing the [ReadableStore][obspec_utils.obspec.ReadableStore] protocol.
         path
             The path to the file within the store.
         """
@@ -207,92 +266,8 @@ class StoreMemCacheReader:
         return self._buffer.tell()
 
 
-# =============================================================================
-# Obstore-specific readers (use obstore's native ReadableFile for efficiency)
-# =============================================================================
-
-try:
-    import obstore as obs
-    from obstore.store import MemoryStore
-
-    _OBSTORE_AVAILABLE = True
-except ImportError:
-    _OBSTORE_AVAILABLE = False
-
-
-class ObstoreReader:
-    """
-    A file-like reader using obstore's native ReadableFile.
-
-    This class uses obstore's optimized `open_reader()` which provides efficient
-    buffered reading. It requires an actual obstore ObjectStore instance.
-
-    For a generic reader that works with any ReadableStore, use
-    [StoreReader][obspec_utils.StoreReader] instead.
-    """
-
-    _reader: ReadableFile
-
-    def __init__(
-        self, store: ObjectStore, path: str, buffer_size: int = 1024 * 1024
-    ) -> None:
-        """
-        Create an obstore file reader.
-
-        Parameters
-        ----------
-        store
-            An obstore [ObjectStore][obstore.store.ObjectStore] instance.
-        path
-            The path to the file within the store.
-        buffer_size
-            The minimum number of bytes to read in a single request.
-        """
-        if not _OBSTORE_AVAILABLE:
-            raise ImportError("obstore is required for ObstoreReader")
-        self._reader = obs.open_reader(store, path, buffer_size=buffer_size)
-
-    def read(self, size: int, /) -> bytes:
-        return self._reader.read(size).to_bytes()
-
-    def readall(self) -> bytes:
-        return self._reader.read().to_bytes()
-
-    def seek(self, offset: int, whence: int = 0, /) -> int:
-        return self._reader.seek(offset, whence)
-
-    def tell(self) -> int:
-        return self._reader.tell()
-
-
-class ObstoreMemCacheReader(ObstoreReader):
-    """
-    A file-like reader using obstore's MemoryStore for caching.
-
-    This class fetches the entire file into obstore's MemoryStore, then uses
-    obstore's native ReadableFile for efficient cached reads.
-
-    For a generic cached reader that works with any ReadableStore, use
-    [StoreMemCacheReader][obspec_utils.StoreMemCacheReader] instead.
-    """
-
-    _reader: ReadableFile
-    _memstore: MemoryStore
-
-    def __init__(self, store: ObjectStore, path: str) -> None:
-        """
-        Create an obstore memory-cached reader.
-
-        Parameters
-        ----------
-        store
-            An obstore [ObjectStore][obstore.store.ObjectStore] instance.
-        path
-            The path to the file within the store.
-        """
-        if not _OBSTORE_AVAILABLE:
-            raise ImportError("obstore is required for ObstoreMemCacheReader")
-        self._memstore = MemoryStore()
-        buffer = store.get(path).bytes()
-        self._memstore.put(path, buffer)
-        self._reader = obs.open_reader(self._memstore, path)
+__all__: list[str] = [
+    "ReadableStore",
+    "StoreReader",
+    "StoreMemCacheReader",
+]

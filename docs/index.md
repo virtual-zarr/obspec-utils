@@ -42,7 +42,7 @@ The `ObjectStoreRegistry` allows you to register object stores and resolve URLs 
 
 ```python
 from obstore.store import S3Store
-from obspec_utils import ObjectStoreRegistry
+from obspec_utils.registry import ObjectStoreRegistry
 
 # Create and register stores
 s3store = S3Store(bucket="my-bucket", prefix="my-data/")
@@ -58,7 +58,7 @@ store, path = registry.resolve("s3://my-bucket/my-data/file.nc")
 For generic HTTPS access where obstore's HTTPStore may not be ideal, you can use the `AiohttpStore`:
 
 ```python
-from obspec_utils import ObjectStoreRegistry
+from obspec_utils.registry import ObjectStoreRegistry
 from obspec_utils.aiohttp import AiohttpStore
 
 # Create an aiohttp-based store for a THREDDS server
@@ -84,7 +84,7 @@ The file handlers provide file-like interfaces (read, seek, tell) for reading fr
 These work with **any** ReadableStore implementation:
 
 ```python
-from obspec_utils import StoreReader, StoreMemCacheReader
+from obspec_utils.obspec import StoreReader, StoreMemCacheReader
 
 # Works with obstore
 from obstore.store import S3Store
@@ -111,7 +111,7 @@ For maximum performance with obstore, use the obstore-specific readers which lev
 
 ```python
 from obstore.store import S3Store
-from obspec_utils import ObstoreReader, ObstoreMemCacheReader
+from obspec_utils.obstore import ObstoreReader, ObstoreMemCacheReader
 
 store = S3Store(bucket="my-bucket")
 

@@ -1,7 +1,8 @@
 import pytest
 from obstore.store import MemoryStore
 
-from obspec_utils import ObjectStoreRegistry, ReadableStore
+from obspec_utils.registry import ObjectStoreRegistry
+from obspec_utils.obspec import ReadableStore
 
 
 def test_registry():
@@ -172,7 +173,7 @@ class TestStoreReader:
 
     def test_store_reader_with_obstore(self):
         """Test StoreReader with an obstore MemoryStore."""
-        from obspec_utils import StoreReader
+        from obspec_utils.obspec import StoreReader
 
         memstore = MemoryStore()
         memstore.put("test.txt", b"hello world from store reader")
@@ -197,7 +198,7 @@ class TestStoreReader:
 
     def test_store_reader_seek_end(self):
         """Test SEEK_END functionality."""
-        from obspec_utils import StoreReader
+        from obspec_utils.obspec import StoreReader
 
         memstore = MemoryStore()
         memstore.put("test.txt", b"0123456789")
@@ -210,7 +211,7 @@ class TestStoreReader:
 
     def test_store_reader_buffering(self):
         """Test that buffering works correctly."""
-        from obspec_utils import StoreReader
+        from obspec_utils.obspec import StoreReader
 
         memstore = MemoryStore()
         memstore.put("test.txt", b"0123456789ABCDEF")
@@ -229,7 +230,7 @@ class TestStoreMemCacheReader:
 
     def test_store_memcache_reader(self):
         """Test StoreMemCacheReader with an obstore MemoryStore."""
-        from obspec_utils import StoreMemCacheReader
+        from obspec_utils.obspec import StoreMemCacheReader
 
         memstore = MemoryStore()
         memstore.put("test.txt", b"cached content here")

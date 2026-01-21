@@ -1,5 +1,5 @@
 import xarray as xr
-from obspec_utils import ObstoreMemCacheReader, ObstoreReader
+from obspec_utils.obstore import ObstoreMemCacheReader, ObstoreReader
 from obstore.store import LocalStore
 
 

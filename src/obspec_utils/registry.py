@@ -8,7 +8,8 @@ from collections import namedtuple
 from typing import Dict, Iterator, Optional, Tuple
 from urllib.parse import urlparse
 
-from obspec_utils.typing import Path, ReadableStore, Url
+from obspec_utils.obspec import ReadableStore
+from obspec_utils.typing import Path, Url
 
 UrlKey = namedtuple("UrlKey", ["scheme", "netloc"])
 """
@@ -28,7 +29,7 @@ netloc
 def get_url_key(url: Url) -> UrlKey:
     """
     Generate the UrlKey containing a url's scheme and authority/netloc that is used a the
-    primary key's in a [ObjectStoreRegistry.map][obspec_utils.ObjectStoreRegistry.map]
+    primary key's in a [ObjectStoreRegistry.map][obspec_utils.registry.ObjectStoreRegistry.map]
 
     Parameters
     ----------
@@ -120,7 +121,7 @@ class ObjectStoreRegistry:
 
     ```python
     from obstore.store import S3Store
-    from obspec_utils import ObjectStoreRegistry
+    from obspec_utils.registry import ObjectStoreRegistry
     from obspec_utils.aiohttp import AiohttpStore
 
     registry = ObjectStoreRegistry({
@@ -139,7 +140,7 @@ class ObjectStoreRegistry:
     def __init__(self, stores: dict[Url, ReadableStore] | None = None) -> None:
         """
         Create a new store registry that matches the provided Urls and
-        [ReadableStore][obspec_utils.typing.ReadableStore] instances.
+        [ReadableStore][obspec_utils.obspec.ReadableStore] instances.
 
         The registry accepts any object that satisfies the ReadableStore protocol,
         which includes obstore classes (S3Store, HTTPStore, etc.) as well as custom
@@ -148,7 +149,7 @@ class ObjectStoreRegistry:
         Parameters
         ----------
         stores
-            Mapping of [Url][obspec_utils.typing.Url] to the [ReadableStore][obspec_utils.typing.ReadableStore]
+            Mapping of [Url][obspec_utils.typing.Url] to the [ReadableStore][obspec_utils.obspec.ReadableStore]
             to be registered under the [Url][obspec_utils.typing.Url].
 
         Examples
@@ -158,7 +159,7 @@ class ObjectStoreRegistry:
 
         ```python exec="on" source="above" session="registry-examples"
         from obstore.store import S3Store
-        from obspec_utils import ObjectStoreRegistry
+        from obspec_utils.registry import ObjectStoreRegistry
 
         s3store = S3Store(bucket="my-bucket-1", prefix="orig-path")
         reg = ObjectStoreRegistry({"s3://my-bucket-1": s3store})
@@ -171,7 +172,7 @@ class ObjectStoreRegistry:
         Using with any ReadableStore protocol implementation:
 
         ```python
-        from obspec_utils import ObjectStoreRegistry
+        from obspec_utils.registry import ObjectStoreRegistry
 
         # Any object implementing the ReadableStore protocol works
         custom_store = MyCustomStore("https://example.com/data")
@@ -195,7 +196,7 @@ class ObjectStoreRegistry:
         url
             [Url][obspec_utils.typing.Url] to register the store under.
         store
-            Any object implementing the [ReadableStore][obspec_utils.typing.ReadableStore] protocol.
+            Any object implementing the [ReadableStore][obspec_utils.obspec.ReadableStore] protocol.
             This includes obstore classes (S3Store, HTTPStore, etc.) as well as custom implementations.
 
         Examples
@@ -203,7 +204,7 @@ class ObjectStoreRegistry:
 
         ```python exec="on" source="above" session="registry-examples"
         from obstore.store import S3Store
-        from obspec_utils import ObjectStoreRegistry
+        from obspec_utils.registry import ObjectStoreRegistry
 
         reg = ObjectStoreRegistry()
         orig_store = S3Store(bucket="my-bucket-1", prefix="orig-path")
@@ -232,9 +233,9 @@ class ObjectStoreRegistry:
 
     def resolve(self, url: Url) -> Tuple[ReadableStore, Path]:
         """
-        Resolve a URL within the [ObjectStoreRegistry][obspec_utils.ObjectStoreRegistry].
+        Resolve a URL within the [ObjectStoreRegistry][obspec_utils.registry.ObjectStoreRegistry].
 
-        If [ObjectStoreRegistry.register][obspec_utils.ObjectStoreRegistry.register] has been called
+        If [ObjectStoreRegistry.register][obspec_utils.registry.ObjectStoreRegistry.register] has been called
         with a URL with the same scheme and authority/netloc as the object URL, and a path that is a prefix
         of the provided url's, it is returned along with the trailing path. Paths are matched on a
         path segment basis, and in the event of multiple possibilities the longest path match is used.
@@ -242,20 +243,20 @@ class ObjectStoreRegistry:
         Parameters
         ----------
         url
-            Url to resolve in the [ObjectStoreRegistry][obspec_utils.ObjectStoreRegistry]
+            Url to resolve in the [ObjectStoreRegistry][obspec_utils.registry.ObjectStoreRegistry]
 
         Returns
         -------
         ReadableStore
-            The [ReadableStore][obspec_utils.typing.ReadableStore] stored at the resolved url.
+            The [ReadableStore][obspec_utils.obspec.ReadableStore] stored at the resolved url.
         Path
             The trailing portion of the url after the prefix of the matching store in the
-            [ObjectStoreRegistry][obspec_utils.ObjectStoreRegistry].
+            [ObjectStoreRegistry][obspec_utils.registry.ObjectStoreRegistry].
 
         Raises
         ------
         ValueError
-            If the URL cannot be resolved, meaning that [ObjectStoreRegistry.register][obspec_utils.ObjectStoreRegistry.register]
+            If the URL cannot be resolved, meaning that [ObjectStoreRegistry.register][obspec_utils.registry.ObjectStoreRegistry.register]
             has not been called with a URL with the same scheme and authority/netloc as the object URL, and a path that is a prefix
             of the provided url's.
 
@@ -264,7 +265,7 @@ class ObjectStoreRegistry:
 
         ```python exec="on" source="above" session="registry-resolve-examples"
         from obstore.store import MemoryStore, S3Store
-        from obspec_utils import ObjectStoreRegistry
+        from obspec_utils.registry import ObjectStoreRegistry
 
         registry = ObjectStoreRegistry()
         memstore1 = MemoryStore()
@@ -338,7 +339,7 @@ class ObjectStoreRegistry:
 
         ```python
         from obstore.store import S3Store
-        from obspec_utils import ObjectStoreRegistry
+        from obspec_utils.registry import ObjectStoreRegistry
         from obspec_utils.aiohttp import AiohttpStore
 
         registry = ObjectStoreRegistry({

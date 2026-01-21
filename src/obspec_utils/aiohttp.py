@@ -9,7 +9,7 @@ Example
 -------
 
 ```python
-from obspec_utils import ObjectStoreRegistry
+from obspec_utils.registry import ObjectStoreRegistry
 from obspec_utils.aiohttp import AiohttpStore
 
 # Use the store as an async context manager for efficient session reuse
@@ -33,7 +33,7 @@ from typing import TYPE_CHECKING
 
 from obspec import GetResult, GetResultAsync
 
-from obspec_utils.typing import ReadableStore
+from obspec_utils.obspec import ReadableStore
 
 if TYPE_CHECKING:
     from obspec import Attributes, GetOptions, ObjectMeta
