@@ -5,15 +5,10 @@ Based on https://docs.rs/object_store/0.12.2/src/object_store/registry.rs.html#1
 from __future__ import annotations
 
 from collections import namedtuple
-from typing import TYPE_CHECKING, Dict, Iterator, Optional, Tuple
+from typing import Dict, Iterator, Optional, Tuple
 from urllib.parse import urlparse
 
-from obspec_utils.typing import Path, Url
-
-if TYPE_CHECKING:
-    from obstore.store import (
-        ObjectStore,
-    )
+from obspec_utils.typing import Path, ReadableStore, Url
 
 UrlKey = namedtuple("UrlKey", ["scheme", "netloc"])
 """
@@ -76,10 +71,10 @@ class PathEntry:
     """
 
     def __init__(self) -> None:
-        self.store: Optional[ObjectStore] = None
+        self.store: Optional[ReadableStore] = None
         self.children: Dict[str, "PathEntry"] = {}
 
-    def lookup(self, to_resolve: str) -> Optional[Tuple[ObjectStore, int]]:
+    def lookup(self, to_resolve: str) -> Optional[Tuple[ReadableStore, int]]:
         """
         Lookup a store based on URL path
 
@@ -103,20 +98,25 @@ class PathEntry:
 
 
 class ObjectStoreRegistry:
-    def __init__(self, stores: dict[Url, ObjectStore] | None = None) -> None:
+    def __init__(self, stores: dict[Url, ReadableStore] | None = None) -> None:
         """
         Create a new store registry that matches the provided Urls and
-        [ObjectStore][obstore.store.ObjectStore] instances.
+        [ReadableStore][obspec_utils.typing.ReadableStore] instances.
 
+        The registry accepts any object that satisfies the ReadableStore protocol,
+        which includes obstore classes (S3Store, HTTPStore, etc.) as well as custom
+        implementations like aiohttp wrappers.
 
         Parameters
         ----------
         stores
-            Mapping of [Url][obspec_utils.typing.Url] to the [ObjectStore][obstore.store.ObjectStore]
+            Mapping of [Url][obspec_utils.typing.Url] to the [ReadableStore][obspec_utils.typing.ReadableStore]
             to be registered under the [Url][obspec_utils.typing.Url].
 
         Examples
         --------
+
+        Using with obstore:
 
         ```python exec="on" source="above" session="registry-examples"
         from obstore.store import S3Store
@@ -129,6 +129,16 @@ class ObjectStoreRegistry:
         assert path == "group/my-file.nc"
         assert ret is s3store
         ```
+
+        Using with any ReadableStore protocol implementation:
+
+        ```python
+        from obspec_utils import ObjectStoreRegistry
+
+        # Any object implementing the ReadableStore protocol works
+        custom_store = MyCustomStore("https://example.com/data")
+        reg = ObjectStoreRegistry({"https://example.com/data": custom_store})
+        ```
         """
         # Mapping from UrlKey (containing scheme and netlocs) to PathEntry
         self.map: Dict[UrlKey, PathEntry] = {}
@@ -136,19 +146,19 @@ class ObjectStoreRegistry:
         for url, store in stores.items():
             self.register(url, store)
 
-    def register(self, url: Url, store: ObjectStore) -> None:
+    def register(self, url: Url, store: ReadableStore) -> None:
         """
         Register a new store for the provided store [Url][obspec_utils.typing.Url].
 
-        If a store with the same [Url][obspec_utils.typing.Url]  existed before, it is replaced.
+        If a store with the same [Url][obspec_utils.typing.Url] existed before, it is replaced.
 
         Parameters
         ----------
         url
-            [Url][obspec_utils.typing.Url] to registry the [ObjectStore][obstore.store.ObjectStore] under.
+            [Url][obspec_utils.typing.Url] to register the store under.
         store
-            [ObjectStore][obstore.store.ObjectStore] instance to register using the
-            provided [Url][obspec_utils.typing.Url].
+            Any object implementing the [ReadableStore][obspec_utils.typing.ReadableStore] protocol.
+            This includes obstore classes (S3Store, HTTPStore, etc.) as well as custom implementations.
 
         Examples
         --------
@@ -182,9 +192,9 @@ class ObjectStoreRegistry:
         # Update the store
         entry.store = store
 
-    def resolve(self, url: Url) -> Tuple[ObjectStore, Path]:
+    def resolve(self, url: Url) -> Tuple[ReadableStore, Path]:
         """
-        Resolve an URL within the [ObjectStoreRegistry][obspec_utils.ObjectStoreRegistry].
+        Resolve a URL within the [ObjectStoreRegistry][obspec_utils.ObjectStoreRegistry].
 
         If [ObjectStoreRegistry.register][obspec_utils.ObjectStoreRegistry.register] has been called
         with a URL with the same scheme and authority/netloc as the object URL, and a path that is a prefix
@@ -198,8 +208,8 @@ class ObjectStoreRegistry:
 
         Returns
         -------
-        ObjectStore
-            The [ObjectStore][obstore.store.ObjectStore] stored at the resolved url.
+        ReadableStore
+            The [ReadableStore][obspec_utils.typing.ReadableStore] stored at the resolved url.
         Path
             The trailing portion of the url after the prefix of the matching store in the
             [ObjectStoreRegistry][obspec_utils.ObjectStoreRegistry].
