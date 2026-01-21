@@ -31,6 +31,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
+from obspec import GetResult, GetResultAsync
+
+from obspec_utils.typing import ReadableStore
+
 if TYPE_CHECKING:
     from obspec import Attributes, GetOptions, ObjectMeta
 
@@ -43,7 +47,7 @@ except ImportError as e:
 
 
 @dataclass
-class AiohttpGetResult:
+class AiohttpGetResult(GetResult):
     """
     Result from a get request using aiohttp.
 
@@ -84,7 +88,7 @@ class AiohttpGetResult:
 
 
 @dataclass
-class AiohttpGetResultAsync:
+class AiohttpGetResultAsync(GetResultAsync):
     """
     Result from an async get request using aiohttp.
 
@@ -124,7 +128,7 @@ class AiohttpGetResultAsync:
         yield self._data
 
 
-class AiohttpStore:
+class AiohttpStore(ReadableStore):
     """
     An aiohttp-based implementation of the ReadableStore protocol.
 
