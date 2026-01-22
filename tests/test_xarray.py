@@ -1,40 +1,40 @@
 import xarray as xr
-from obspec_utils.obstore import ObstoreMemCacheReader, ObstoreReader
+from obspec_utils.obspec import BufferedStoreReader, EagerStoreReader
 from obstore.store import LocalStore
 
 
 def test_local_reader(local_netcdf4_file) -> None:
     ds_fsspec = xr.open_dataset(local_netcdf4_file, engine="h5netcdf")
-    reader = ObstoreReader(store=LocalStore(), path=local_netcdf4_file)
+    reader = BufferedStoreReader(store=LocalStore(), path=local_netcdf4_file)
     ds_obstore = xr.open_dataset(reader, engine="h5netcdf")
     xr.testing.assert_allclose(ds_fsspec, ds_obstore)
 
 
-def test_memcache_reader(local_netcdf4_file) -> None:
-    """Test that ObstoreMemCacheReader works with xarray."""
+def test_eager_reader(local_netcdf4_file) -> None:
+    """Test that EagerStoreReader works with xarray."""
     ds_fsspec = xr.open_dataset(local_netcdf4_file, engine="h5netcdf")
-    reader = ObstoreMemCacheReader(store=LocalStore(), path=local_netcdf4_file)
+    reader = EagerStoreReader(store=LocalStore(), path=local_netcdf4_file)
     ds_obstore = xr.open_dataset(reader, engine="h5netcdf")
     xr.testing.assert_allclose(ds_fsspec, ds_obstore)
 
 
-def test_memcache_reader_interface(local_netcdf4_file) -> None:
-    """Test that ObstoreMemCacheReader implements the same interface as ObstoreReader."""
+def test_eager_reader_interface(local_netcdf4_file) -> None:
+    """Test that EagerStoreReader implements the same interface as BufferedStoreReader."""
     store = LocalStore()
-    regular_reader = ObstoreReader(store=store, path=local_netcdf4_file)
-    memcache_reader = ObstoreMemCacheReader(store=store, path=local_netcdf4_file)
+    buffered_reader = BufferedStoreReader(store=store, path=local_netcdf4_file)
+    eager_reader = EagerStoreReader(store=store, path=local_netcdf4_file)
 
     # Test readall
-    data_regular = regular_reader.readall()
-    data_memcache = memcache_reader.readall()
-    assert data_regular == data_memcache
-    assert isinstance(data_memcache, bytes)
+    data_buffered = buffered_reader.readall()
+    data_eager = eager_reader.readall()
+    assert data_buffered == data_eager
+    assert isinstance(data_eager, bytes)
 
 
-def test_memcache_reader_multiple_reads(local_netcdf4_file) -> None:
-    """Test that ObstoreMemCacheReader can perform multiple reads."""
+def test_eager_reader_multiple_reads(local_netcdf4_file) -> None:
+    """Test that EagerStoreReader can perform multiple reads."""
     store = LocalStore()
-    reader = ObstoreMemCacheReader(store=store, path=local_netcdf4_file)
+    reader = EagerStoreReader(store=store, path=local_netcdf4_file)
 
     # Read the first 100 bytes
     chunk1 = reader.read(100)

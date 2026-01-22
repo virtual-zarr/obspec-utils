@@ -77,51 +77,28 @@ data = await store.get_range_async(path, start=0, end=1000)
 
 ### File Handlers
 
-The file handlers provide file-like interfaces (read, seek, tell) for reading from object stores.
-
-#### Protocol-based readers (recommended)
-
-These work with **any** ReadableStore implementation:
+The file handlers provide file-like interfaces (read, seek, tell) for reading from object stores. They work with **any** ReadableStore implementation:
 
 ```python
-from obspec_utils.obspec import StoreReader, StoreMemCacheReader
+from obspec_utils.obspec import BufferedStoreReader, EagerStoreReader
 
 # Works with obstore
 from obstore.store import S3Store
 store = S3Store(bucket="my-bucket")
-reader = StoreReader(store, "path/to/file.bin", buffer_size=1024*1024)
+reader = BufferedStoreReader(store, "path/to/file.bin", buffer_size=1024*1024)
 
 # Also works with AiohttpStore or any ReadableStore
 from obspec_utils.aiohttp import AiohttpStore
 store = AiohttpStore("https://example.com/data")
-reader = StoreReader(store, "file.bin")
+reader = BufferedStoreReader(store, "file.bin")
 
-# Standard reader with buffered reads
+# Buffered reader with on-demand reads
 data = reader.read(100)  # Read 100 bytes
 reader.seek(0)           # Seek back to start
 
-# Memory-cached reader for repeated access
-cached_reader = StoreMemCacheReader(store, "file.bin")
-data = cached_reader.readall()
-```
-
-#### Obstore-specific readers
-
-For maximum performance with obstore, use the obstore-specific readers which leverage obstore's native `ReadableFile`:
-
-```python
-from obstore.store import S3Store
-from obspec_utils.obstore import ObstoreReader, ObstoreMemCacheReader
-
-store = S3Store(bucket="my-bucket")
-
-# Uses obstore's optimized buffered reader
-reader = ObstoreReader(store, "path/to/file.bin", buffer_size=1024*1024)
-data = reader.read(100)
-
-# Uses obstore's MemoryStore for caching
-cached_reader = ObstoreMemCacheReader(store, "path/to/file.bin")
-data = cached_reader.readall()
+# Eager reader loads entire file into memory
+eager_reader = EagerStoreReader(store, "file.bin")
+data = eager_reader.readall()
 ```
 
 ## Contributing

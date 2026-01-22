@@ -72,9 +72,9 @@ class ReadableStore(
 # Protocol-based readers (work with any ReadableStore implementation)
 
 
-class StoreReader:
+class BufferedStoreReader:
     """
-    A file-like reader that works with any ReadableStore protocol implementation.
+    A file-like reader with buffered on-demand reads.
 
     This class provides a file-like interface (read, seek, tell) on top of any
     object that implements the ReadableStore protocol, including obstore classes,
@@ -217,9 +217,9 @@ class StoreReader:
         return self._position
 
 
-class StoreMemCacheReader:
+class EagerStoreReader:
     """
-    A file-like reader that caches the entire file in memory.
+    A file-like reader that eagerly loads the entire file into memory.
 
     This reader fetches the complete file on first access and then serves all
     subsequent reads from the in-memory cache. Useful for files that will be
@@ -230,7 +230,7 @@ class StoreMemCacheReader:
 
     def __init__(self, store: ReadableStore, path: str) -> None:
         """
-        Create a memory-cached reader for any ReadableStore.
+        Create an eager reader that loads the entire file into memory.
 
         The file is fetched immediately and cached in memory.
 
@@ -268,6 +268,6 @@ class StoreMemCacheReader:
 
 __all__: list[str] = [
     "ReadableStore",
-    "StoreReader",
-    "StoreMemCacheReader",
+    "BufferedStoreReader",
+    "EagerStoreReader",
 ]
