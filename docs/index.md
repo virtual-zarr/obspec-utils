@@ -80,7 +80,7 @@ data = await store.get_range_async(path, start=0, end=1000)
 The file handlers provide file-like interfaces (read, seek, tell) for reading from object stores. They work with **any** ReadableStore implementation:
 
 ```python
-from obspec_utils.obspec import BufferedStoreReader, EagerStoreReader
+from obspec_utils.obspec import BufferedStoreReader, EagerStoreReader, ParallelStoreReader
 
 # Works with obstore
 from obstore.store import S3Store
@@ -99,6 +99,10 @@ reader.seek(0)           # Seek back to start
 # Eager reader loads entire file into memory
 eager_reader = EagerStoreReader(store, "file.bin")
 data = eager_reader.readall()
+
+# Parallel reader uses get_ranges() for efficient multi-chunk fetching with LRU cache
+parallel_reader = ParallelStoreReader(store, "file.bin", chunk_size=256*1024)
+data = parallel_reader.read(1000)
 ```
 
 ## Contributing

@@ -2,7 +2,14 @@ import pytest
 from obstore.store import MemoryStore
 
 from obspec_utils.registry import ObjectStoreRegistry
-from obspec_utils.obspec import ReadableStore
+from obspec_utils.obspec import (
+    ReadableStore,
+    BufferedStoreReader,
+    EagerStoreReader,
+    ParallelStoreReader,
+)
+
+ALL_READERS = [BufferedStoreReader, EagerStoreReader, ParallelStoreReader]
 
 
 def test_registry():
@@ -168,88 +175,133 @@ async def test_registry_with_async_operations():
     assert bytes(result) == b"async"
 
 
-class TestBufferedStoreReader:
-    """Tests for the BufferedStoreReader class."""
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_basic_operations(ReaderClass):
+    """Test basic read, seek, tell operations for all readers."""
+    memstore = MemoryStore()
+    memstore.put("test.txt", b"hello world from store reader")
 
-    def test_buffered_store_reader_with_obstore(self):
-        """Test BufferedStoreReader with an obstore MemoryStore."""
-        from obspec_utils.obspec import BufferedStoreReader
+    reader = ReaderClass(memstore, "test.txt")
 
-        memstore = MemoryStore()
-        memstore.put("test.txt", b"hello world from store reader")
+    # Test read
+    assert reader.read(5) == b"hello"
+    assert reader.tell() == 5
 
-        reader = BufferedStoreReader(memstore, "test.txt", buffer_size=10)
+    # Test seek and read
+    reader.seek(6)
+    assert reader.read(5) == b"world"
 
-        # Test read
-        assert reader.read(5) == b"hello"
-        assert reader.tell() == 5
+    # Test seek from current (SEEK_CUR)
+    reader.seek(-5, 1)
+    assert reader.read(5) == b"world"
 
-        # Test seek and read
-        reader.seek(6)
-        assert reader.read(5) == b"world"
-
-        # Test seek from current
-        reader.seek(-5, 1)  # SEEK_CUR
-        assert reader.read(5) == b"world"
-
-        # Test readall
-        reader.seek(0)
-        assert reader.readall() == b"hello world from store reader"
-
-    def test_buffered_store_reader_seek_end(self):
-        """Test SEEK_END functionality."""
-        from obspec_utils.obspec import BufferedStoreReader
-
-        memstore = MemoryStore()
-        memstore.put("test.txt", b"0123456789")
-
-        reader = BufferedStoreReader(memstore, "test.txt")
-
-        # Seek to 2 bytes before end
-        reader.seek(-2, 2)  # SEEK_END
-        assert reader.read(2) == b"89"
-
-    def test_buffered_store_reader_buffering(self):
-        """Test that buffering works correctly."""
-        from obspec_utils.obspec import BufferedStoreReader
-
-        memstore = MemoryStore()
-        memstore.put("test.txt", b"0123456789ABCDEF")
-
-        # Small buffer size to test buffering behavior
-        reader = BufferedStoreReader(memstore, "test.txt", buffer_size=8)
-
-        # First read should fetch buffer_size bytes
-        assert reader.read(2) == b"01"
-        # Second read should come from buffer
-        assert reader.read(2) == b"23"
+    # Test readall
+    reader.seek(0)
+    assert reader.readall() == b"hello world from store reader"
 
 
-class TestEagerStoreReader:
-    """Tests for the EagerStoreReader class."""
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_seek_end(ReaderClass):
+    """Test SEEK_END functionality for all readers."""
+    memstore = MemoryStore()
+    memstore.put("test.txt", b"0123456789")
 
-    def test_eager_store_reader(self):
-        """Test EagerStoreReader with an obstore MemoryStore."""
-        from obspec_utils.obspec import EagerStoreReader
+    reader = ReaderClass(memstore, "test.txt")
 
-        memstore = MemoryStore()
-        memstore.put("test.txt", b"cached content here")
+    # Seek to 2 bytes before end
+    reader.seek(-2, 2)  # SEEK_END
+    assert reader.read(2) == b"89"
 
-        reader = EagerStoreReader(memstore, "test.txt")
 
-        # Test read
-        assert reader.read(6) == b"cached"
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_all_seek_modes(ReaderClass):
+    """Test all seek modes for all readers."""
+    memstore = MemoryStore()
+    memstore.put("test.txt", b"0123456789ABCDEF")
 
-        # Test seek and read
-        reader.seek(7)
-        assert reader.read(7) == b"content"
+    reader = ReaderClass(memstore, "test.txt")
 
-        # Test readall preserves position
-        pos_before = reader.tell()
-        data = reader.readall()
-        assert data == b"cached content here"
-        assert reader.tell() == pos_before
+    # SEEK_SET
+    reader.seek(5)
+    assert reader.tell() == 5
+    assert reader.read(3) == b"567"
 
-        # Test seek to start
-        reader.seek(0)
-        assert reader.read() == b"cached content here"
+    # SEEK_CUR
+    reader.seek(-3, 1)
+    assert reader.tell() == 5
+    assert reader.read(3) == b"567"
+
+    # SEEK_END
+    reader.seek(-4, 2)
+    assert reader.read(4) == b"CDEF"
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_read_past_end(ReaderClass):
+    """Test reading past end of file for all readers."""
+    memstore = MemoryStore()
+    memstore.put("test.txt", b"short")
+
+    reader = ReaderClass(memstore, "test.txt")
+
+    # For EagerStoreReader, read() returns what's available
+    # For others, they clamp to file size
+    data = reader.read(100)
+    assert data == b"short"
+
+
+def test_buffered_reader_buffering():
+    """Test that BufferedStoreReader buffering works correctly."""
+    memstore = MemoryStore()
+    memstore.put("test.txt", b"0123456789ABCDEF")
+
+    # Small buffer size to test buffering behavior
+    reader = BufferedStoreReader(memstore, "test.txt", buffer_size=8)
+
+    # First read should fetch buffer_size bytes
+    assert reader.read(2) == b"01"
+    # Second read should come from buffer
+    assert reader.read(2) == b"23"
+
+
+def test_parallel_reader_cross_chunk_read():
+    """Test ParallelStoreReader reading across chunk boundaries."""
+    memstore = MemoryStore()
+    memstore.put("test.txt", b"0123456789ABCDEF")
+
+    # Small chunk size to test cross-chunk reads
+    reader = ParallelStoreReader(memstore, "test.txt", chunk_size=4)
+
+    # Read across chunk boundary (chunks are 0-3, 4-7, 8-11, 12-15)
+    reader.seek(2)
+    assert reader.read(6) == b"234567"  # Spans chunks 0 and 1
+
+    # Read spanning multiple chunks
+    reader.seek(0)
+    assert reader.read(10) == b"0123456789"  # Spans chunks 0, 1, and 2
+
+
+def test_parallel_reader_caching():
+    """Test that ParallelStoreReader chunks are cached correctly."""
+    memstore = MemoryStore()
+    memstore.put("test.txt", b"0123456789ABCDEF")
+
+    reader = ParallelStoreReader(
+        memstore, "test.txt", chunk_size=4, max_cached_chunks=2
+    )
+
+    # Read first chunk
+    reader.seek(0)
+    assert reader.read(4) == b"0123"
+
+    # Read second chunk
+    reader.seek(4)
+    assert reader.read(4) == b"4567"
+
+    # Read third chunk - should evict first chunk from cache
+    reader.seek(8)
+    assert reader.read(4) == b"89AB"
+
+    # Reading first chunk again should still work (refetched)
+    reader.seek(0)
+    assert reader.read(4) == b"0123"

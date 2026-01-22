@@ -1,40 +1,41 @@
+import pytest
 import xarray as xr
-from obspec_utils.obspec import BufferedStoreReader, EagerStoreReader
+from obspec_utils.obspec import (
+    BufferedStoreReader,
+    EagerStoreReader,
+    ParallelStoreReader,
+)
 from obstore.store import LocalStore
 
 
-def test_local_reader(local_netcdf4_file) -> None:
+ALL_READERS = [BufferedStoreReader, EagerStoreReader, ParallelStoreReader]
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_with_xarray(local_netcdf4_file, ReaderClass) -> None:
+    """Test that all readers work with xarray."""
     ds_fsspec = xr.open_dataset(local_netcdf4_file, engine="h5netcdf")
-    reader = BufferedStoreReader(store=LocalStore(), path=local_netcdf4_file)
+    reader = ReaderClass(store=LocalStore(), path=local_netcdf4_file)
     ds_obstore = xr.open_dataset(reader, engine="h5netcdf")
     xr.testing.assert_allclose(ds_fsspec, ds_obstore)
 
 
-def test_eager_reader(local_netcdf4_file) -> None:
-    """Test that EagerStoreReader works with xarray."""
-    ds_fsspec = xr.open_dataset(local_netcdf4_file, engine="h5netcdf")
-    reader = EagerStoreReader(store=LocalStore(), path=local_netcdf4_file)
-    ds_obstore = xr.open_dataset(reader, engine="h5netcdf")
-    xr.testing.assert_allclose(ds_fsspec, ds_obstore)
-
-
-def test_eager_reader_interface(local_netcdf4_file) -> None:
-    """Test that EagerStoreReader implements the same interface as BufferedStoreReader."""
+@pytest.mark.parametrize("ReaderClass", [EagerStoreReader, ParallelStoreReader])
+def test_reader_interface_matches_buffered(local_netcdf4_file, ReaderClass) -> None:
+    """Test that readers implement the same interface as BufferedStoreReader."""
     store = LocalStore()
     buffered_reader = BufferedStoreReader(store=store, path=local_netcdf4_file)
-    eager_reader = EagerStoreReader(store=store, path=local_netcdf4_file)
+    other_reader = ReaderClass(store=store, path=local_netcdf4_file)
 
-    # Test readall
-    data_buffered = buffered_reader.readall()
-    data_eager = eager_reader.readall()
-    assert data_buffered == data_eager
-    assert isinstance(data_eager, bytes)
+    assert buffered_reader.readall() == other_reader.readall()
+    assert isinstance(other_reader.readall(), bytes)
 
 
-def test_eager_reader_multiple_reads(local_netcdf4_file) -> None:
-    """Test that EagerStoreReader can perform multiple reads."""
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_multiple_reads(local_netcdf4_file, ReaderClass) -> None:
+    """Test that readers can perform multiple reads with seek/tell."""
     store = LocalStore()
-    reader = EagerStoreReader(store=store, path=local_netcdf4_file)
+    reader = ReaderClass(store=store, path=local_netcdf4_file)
 
     # Read the first 100 bytes
     chunk1 = reader.read(100)
