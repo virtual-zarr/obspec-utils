@@ -7,5 +7,5 @@ build:
   commands:
     - pip install uv
     - uv sync --group docs
-    - uv run mkdocs build
+    - uv run mkdocs build --strict
     - mkdir -p $READTHEDOCS_OUTPUT/html && cp -r site/* $READTHEDOCS_OUTPUT/html/
