@@ -1,2 +1,5 @@
-::: obspec_utils.obspec.StoreReader
-::: obspec_utils.obspec.StoreMemCacheReader
+::: obspec_utils.obspec
+    options:
+      filters:
+        - "!^_"  # Exclude private members
+        - "!ReadableStore*"

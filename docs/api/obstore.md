@@ -1,2 +1,5 @@
-::: obspec_utils.obstore.ObstoreReader
-::: obspec_utils.obstore.ObstoreMemCacheReader
+::: obspec_utils.obstore
+    options:
+      members: true
+      filters:
+        - "!^_"  # Exclude private members

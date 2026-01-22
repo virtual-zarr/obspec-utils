@@ -1,1 +1,5 @@
-::: obspec_utils.aiohttp.AiohttpStore
+::: obspec_utils.aiohttp
+    options:
+      members: true
+      filters:
+        - "!^_"  # Exclude private members

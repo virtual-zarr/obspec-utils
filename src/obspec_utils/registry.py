@@ -29,7 +29,7 @@ netloc
 def get_url_key(url: Url) -> UrlKey:
     """
     Generate the UrlKey containing a url's scheme and authority/netloc that is used a the
-    primary key's in a [ObjectStoreRegistry.map][obspec_utils.registry.ObjectStoreRegistry.map]
+    primary key's in the [ObjectStoreRegistry][obspec_utils.registry.ObjectStoreRegistry]
 
     Parameters
     ----------

@@ -1,2 +1,5 @@
-::: obspec_utils.registry.ObjectStoreRegistry
-::: obspec_utils.registry.UrlKey
+::: obspec_utils.registry
+    options:
+      members: true
+      filters:
+        - "!^_"  # Exclude private members
