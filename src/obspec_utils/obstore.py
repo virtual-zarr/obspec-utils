@@ -1,17 +1,28 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import threading
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
-from typing import TYPE_CHECKING
 
 import obstore as obs
+
+from obstore.store import MemoryStore
+
 
 if TYPE_CHECKING:
     from obstore import ReadableFile
     from obstore.store import ObjectStore
 
-from obstore.store import MemoryStore
+
+try:
+    import obstore as obs
+    from obstore.store import MemoryStore
+except ImportError as e:
+    raise ImportError(
+        "obstore is required for ObstoreReader. Install it with: pip install obstore"
+    ) from e
 
 
 class ObstoreReader:
@@ -932,3 +943,6 @@ class ObstoreHybridReader:
 
     def __exit__(self, *args) -> None:
         self.close()
+
+
+__all__ = ["ObstoreReader", "ObstoreEagerReader"]

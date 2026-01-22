@@ -1,10 +1,10 @@
 import xarray as xr
-from obspec_utils import (
-    ObstoreEagerReader,
+from obspec_utils.obstore import (
+    ObstoreReader,
     ObstoreHybridReader,
     ObstoreParallelReader,
     ObstorePrefetchReader,
-    ObstoreReader,
+    ObstoreEagerReader,
 )
 from obstore.store import LocalStore, MemoryStore
 

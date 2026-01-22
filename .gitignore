@@ -49,12 +49,6 @@ coverage.xml
 # Django stuff:
 *.log
 
-# Sphinx documentation
-docs/_build/
-docs/api
-docs/data
-data
-data.zip
 
 # PyBuilder
 target/
@@ -85,3 +79,6 @@ tests/.hypothesis
 .hypothesis/
 
 site/*
+
+# uv lock files
+uv.lock

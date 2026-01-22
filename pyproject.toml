@@ -54,6 +54,7 @@ test = [
 xarray = [
   "xarray",
   "h5netcdf",
+  "h5py",
 ]
 fsspec = [
   "s3fs",
