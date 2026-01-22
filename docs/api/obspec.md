@@ -1,2 +1,2 @@
-::: obspec_utils.obspec.StoreReader
-::: obspec_utils.obspec.StoreMemCacheReader
+::: obspec_utils.obspec.BufferedStoreReader
+::: obspec_utils.obspec.EagerStoreReader

@@ -168,17 +168,17 @@ async def test_registry_with_async_operations():
     assert bytes(result) == b"async"
 
 
-class TestStoreReader:
-    """Tests for the generic StoreReader class."""
+class TestBufferedStoreReader:
+    """Tests for the BufferedStoreReader class."""
 
-    def test_store_reader_with_obstore(self):
-        """Test StoreReader with an obstore MemoryStore."""
-        from obspec_utils.obspec import StoreReader
+    def test_buffered_store_reader_with_obstore(self):
+        """Test BufferedStoreReader with an obstore MemoryStore."""
+        from obspec_utils.obspec import BufferedStoreReader
 
         memstore = MemoryStore()
         memstore.put("test.txt", b"hello world from store reader")
 
-        reader = StoreReader(memstore, "test.txt", buffer_size=10)
+        reader = BufferedStoreReader(memstore, "test.txt", buffer_size=10)
 
         # Test read
         assert reader.read(5) == b"hello"
@@ -196,28 +196,28 @@ class TestStoreReader:
         reader.seek(0)
         assert reader.readall() == b"hello world from store reader"
 
-    def test_store_reader_seek_end(self):
+    def test_buffered_store_reader_seek_end(self):
         """Test SEEK_END functionality."""
-        from obspec_utils.obspec import StoreReader
+        from obspec_utils.obspec import BufferedStoreReader
 
         memstore = MemoryStore()
         memstore.put("test.txt", b"0123456789")
 
-        reader = StoreReader(memstore, "test.txt")
+        reader = BufferedStoreReader(memstore, "test.txt")
 
         # Seek to 2 bytes before end
         reader.seek(-2, 2)  # SEEK_END
         assert reader.read(2) == b"89"
 
-    def test_store_reader_buffering(self):
+    def test_buffered_store_reader_buffering(self):
         """Test that buffering works correctly."""
-        from obspec_utils.obspec import StoreReader
+        from obspec_utils.obspec import BufferedStoreReader
 
         memstore = MemoryStore()
         memstore.put("test.txt", b"0123456789ABCDEF")
 
         # Small buffer size to test buffering behavior
-        reader = StoreReader(memstore, "test.txt", buffer_size=8)
+        reader = BufferedStoreReader(memstore, "test.txt", buffer_size=8)
 
         # First read should fetch buffer_size bytes
         assert reader.read(2) == b"01"
@@ -225,17 +225,17 @@ class TestStoreReader:
         assert reader.read(2) == b"23"
 
 
-class TestStoreMemCacheReader:
-    """Tests for the generic StoreMemCacheReader class."""
+class TestEagerStoreReader:
+    """Tests for the EagerStoreReader class."""
 
-    def test_store_memcache_reader(self):
-        """Test StoreMemCacheReader with an obstore MemoryStore."""
-        from obspec_utils.obspec import StoreMemCacheReader
+    def test_eager_store_reader(self):
+        """Test EagerStoreReader with an obstore MemoryStore."""
+        from obspec_utils.obspec import EagerStoreReader
 
         memstore = MemoryStore()
         memstore.put("test.txt", b"cached content here")
 
-        reader = StoreMemCacheReader(memstore, "test.txt")
+        reader = EagerStoreReader(memstore, "test.txt")
 
         # Test read
         assert reader.read(6) == b"cached"
