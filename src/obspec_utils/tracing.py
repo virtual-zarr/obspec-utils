@@ -216,18 +216,46 @@ class TracingStore:
         self._record(path, 0, size, duration=duration, method="get")
         return result
 
-    def get_range(self, path: str, *, start: int, length: int):
+    def get_range(
+        self,
+        path: str,
+        *,
+        start: int,
+        end: int | None = None,
+        length: int | None = None,
+    ):
         """Get a byte range (delegates to underlying store)."""
+        # Calculate length from end if not provided
+        if length is None:
+            if end is None:
+                raise ValueError("Either 'end' or 'length' must be provided")
+            length = end - start
+
         start_time = time.time()
-        result = self._store.get_range(path, start=start, length=length)
+        result = self._store.get_range(path, start=start, end=end, length=length)
         duration = time.time() - start_time
         self._record(path, start, length, duration=duration, method="get_range")
         return result
 
-    async def get_range_async(self, path: str, *, start: int, length: int):
+    async def get_range_async(
+        self,
+        path: str,
+        *,
+        start: int,
+        end: int | None = None,
+        length: int | None = None,
+    ):
         """Get a byte range async (delegates to underlying store)."""
+        # Calculate length from end if not provided
+        if length is None:
+            if end is None:
+                raise ValueError("Either 'end' or 'length' must be provided")
+            length = end - start
+
         start_time = time.time()
-        result = await self._store.get_range_async(path, start=start, length=length)
+        result = await self._store.get_range_async(
+            path, start=start, end=end, length=length
+        )
         duration = time.time() - start_time
         self._record(path, start, length, duration=duration, method="get_range")
         return result
@@ -237,11 +265,20 @@ class TracingStore:
         path: str,
         *,
         starts: Sequence[int],
-        lengths: Sequence[int],
+        ends: Sequence[int] | None = None,
+        lengths: Sequence[int] | None = None,
     ):
         """Get multiple byte ranges (delegates to underlying store)."""
+        # Calculate lengths from ends if not provided
+        if lengths is None:
+            if ends is None:
+                raise ValueError("Either 'ends' or 'lengths' must be provided")
+            lengths = [end - start for start, end in zip(starts, ends)]
+
         start_time = time.time()
-        results = self._store.get_ranges(path, starts=starts, lengths=lengths)
+        results = self._store.get_ranges(
+            path, starts=starts, ends=ends, lengths=lengths
+        )
         duration = time.time() - start_time
 
         # Record each range request
@@ -258,12 +295,19 @@ class TracingStore:
         path: str,
         *,
         starts: Sequence[int],
-        lengths: Sequence[int],
+        ends: Sequence[int] | None = None,
+        lengths: Sequence[int] | None = None,
     ):
         """Get multiple byte ranges async (delegates to underlying store)."""
+        # Calculate lengths from ends if not provided
+        if lengths is None:
+            if ends is None:
+                raise ValueError("Either 'ends' or 'lengths' must be provided")
+            lengths = [end - start for start, end in zip(starts, ends)]
+
         start_time = time.time()
         results = await self._store.get_ranges_async(
-            path, starts=starts, lengths=lengths
+            path, starts=starts, ends=ends, lengths=lengths
         )
         duration = time.time() - start_time
 
