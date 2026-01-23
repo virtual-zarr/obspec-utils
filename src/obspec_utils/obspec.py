@@ -341,25 +341,21 @@ class EagerStoreReader:
         path
             The path to the file within the store.
         chunk_size
-            If provided, fetch the file using parallel requests of this size.
-            The file will be divided into ceil(file_size / chunk_size) chunks
-            and fetched using `get_ranges()`. If None (default), fetch with a
-            single `get()` request.
+            If provided along with `file_size`, fetch the file using parallel
+            requests of this size. The file will be divided into chunks and
+            fetched using `get_ranges()`. If None (default) or if `file_size`
+            is not provided, fetch with a single `get()` request.
         file_size
-            Optional file size in bytes. If provided along with `chunk_size`,
-            avoids an extra request to determine file size. Ignored if
-            `chunk_size` is None.
+            File size in bytes. Required for chunked fetching - if not provided,
+            the file will be fetched with a single `get()` request regardless
+            of `chunk_size`.
         """
-        if chunk_size is None:
-            # Single request - original behavior
+        if chunk_size is None or file_size is None:
+            # Single request - fetch entire file
             result = store.get(path)
             data = bytes(result.buffer())
         else:
-            # Parallel chunked requests
-            if file_size is None:
-                result = store.get(path)
-                file_size = result.meta["size"]
-
+            # Parallel chunked requests (only when file_size is known)
             if file_size == 0:
                 data = b""
             else:
