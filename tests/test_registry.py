@@ -305,3 +305,299 @@ def test_parallel_reader_caching():
     # Reading first chunk again should still work (refetched)
     reader.seek(0)
     assert reader.read(4) == b"0123"
+
+
+# --- EagerStoreReader tests with TracingReadableStore ---
+
+
+class MockReadableStoreWithHead:
+    """A mock store that supports the Head protocol."""
+
+    def __init__(self, data: bytes = b"test data"):
+        self._data = data
+
+    def head(self, path):
+        """Return metadata including file size."""
+        return {
+            "path": path,
+            "last_modified": None,
+            "size": len(self._data),
+            "e_tag": None,
+            "version": None,
+        }
+
+    def get(self, path, *, options=None):
+        from tests.test_registry import _MockGetResult
+
+        return _MockGetResult(self._data)
+
+    async def get_async(self, path, *, options=None):
+        from tests.test_registry import _MockGetResultAsync
+
+        return _MockGetResultAsync(self._data)
+
+    def get_range(self, path, *, start, end=None, length=None):
+        if end is None:
+            end = start + length
+        return self._data[start:end]
+
+    async def get_range_async(self, path, *, start, end=None, length=None):
+        if end is None:
+            end = start + length
+        return self._data[start:end]
+
+    def get_ranges(self, path, *, starts, ends=None, lengths=None):
+        if ends is None:
+            ends = [s + ln for s, ln in zip(starts, lengths)]
+        return [self._data[s:e] for s, e in zip(starts, ends)]
+
+    async def get_ranges_async(self, path, *, starts, ends=None, lengths=None):
+        if ends is None:
+            ends = [s + ln for s, ln in zip(starts, lengths)]
+        return [self._data[s:e] for s, e in zip(starts, ends)]
+
+
+class MockReadableStoreWithoutHead:
+    """A mock store without the Head protocol."""
+
+    def __init__(self, data: bytes = b"test data"):
+        self._data = data
+
+    def get(self, path, *, options=None):
+        return _MockGetResult(self._data)
+
+    async def get_async(self, path, *, options=None):
+        return _MockGetResultAsync(self._data)
+
+    def get_range(self, path, *, start, end=None, length=None):
+        if end is None:
+            end = start + length
+        return self._data[start:end]
+
+    async def get_range_async(self, path, *, start, end=None, length=None):
+        if end is None:
+            end = start + length
+        return self._data[start:end]
+
+    def get_ranges(self, path, *, starts, ends=None, lengths=None):
+        if ends is None:
+            ends = [s + ln for s, ln in zip(starts, lengths)]
+        return [self._data[s:e] for s, e in zip(starts, ends)]
+
+    async def get_ranges_async(self, path, *, starts, ends=None, lengths=None):
+        if ends is None:
+            ends = [s + ln for s, ln in zip(starts, lengths)]
+        return [self._data[s:e] for s, e in zip(starts, ends)]
+
+
+class _MockGetResult:
+    def __init__(self, data):
+        self._data = data
+
+    @property
+    def attributes(self):
+        return {}
+
+    def buffer(self):
+        return self._data
+
+    @property
+    def meta(self):
+        return {
+            "path": "",
+            "last_modified": None,
+            "size": len(self._data),
+            "e_tag": None,
+            "version": None,
+        }
+
+    @property
+    def range(self):
+        return (0, len(self._data))
+
+    def __iter__(self):
+        yield self._data
+
+
+class _MockGetResultAsync:
+    def __init__(self, data):
+        self._data = data
+
+    @property
+    def attributes(self):
+        return {}
+
+    async def buffer_async(self):
+        return self._data
+
+    @property
+    def meta(self):
+        return {
+            "path": "",
+            "last_modified": None,
+            "size": len(self._data),
+            "e_tag": None,
+            "version": None,
+        }
+
+    @property
+    def range(self):
+        return (0, len(self._data))
+
+    async def __aiter__(self):
+        yield self._data
+
+
+def test_eager_reader_with_chunk_size_and_file_size():
+    """Test EagerStoreReader uses get_ranges when chunk_size and file_size provided."""
+    from obspec_utils.tracing import TracingReadableStore, RequestTrace
+
+    # Create test data (16 bytes)
+    data = b"0123456789ABCDEF"
+    mock_store = MockReadableStoreWithoutHead(data)
+
+    # Wrap with tracing
+    trace = RequestTrace()
+    traced_store = TracingReadableStore(mock_store, trace)
+
+    # Create reader with chunk_size and file_size
+    reader = EagerStoreReader(
+        traced_store, "test.txt", chunk_size=4, file_size=len(data)
+    )
+
+    # Verify the data is correct
+    assert reader.read() == data
+
+    # Verify get_ranges was used (not get)
+    summary = trace.summary()
+    assert summary["total_requests"] == 4  # 16 bytes / 4 byte chunks = 4 requests
+    assert all(r.method == "get_ranges" for r in trace.requests)
+    assert summary["total_bytes"] == len(data)
+
+
+def test_eager_reader_with_chunk_size_uses_head():
+    """Test EagerStoreReader uses head() to get file size when available."""
+    from obspec_utils.tracing import TracingReadableStore, RequestTrace
+
+    # Create test data (16 bytes)
+    data = b"0123456789ABCDEF"
+    mock_store = MockReadableStoreWithHead(data)
+
+    # Wrap with tracing
+    trace = RequestTrace()
+    traced_store = TracingReadableStore(mock_store, trace)
+
+    # Create reader with chunk_size but no file_size
+    # Store has head() method so it should be used
+    reader = EagerStoreReader(traced_store, "test.txt", chunk_size=4)
+
+    # Verify the data is correct
+    assert reader.read() == data
+
+    # Verify get_ranges was used (head() call isn't traced, only data requests)
+    summary = trace.summary()
+    assert summary["total_requests"] == 4  # 16 bytes / 4 byte chunks
+    assert all(r.method == "get_ranges" for r in trace.requests)
+    assert summary["total_bytes"] == len(data)
+
+
+def test_eager_reader_falls_back_to_single_get():
+    """Test EagerStoreReader falls back to get() when head not available."""
+    from obspec_utils.tracing import TracingReadableStore, RequestTrace
+
+    # Create test data
+    data = b"0123456789ABCDEF"
+    mock_store = MockReadableStoreWithoutHead(data)
+
+    # Wrap with tracing
+    trace = RequestTrace()
+    traced_store = TracingReadableStore(mock_store, trace)
+
+    # Create reader with chunk_size but no file_size and no head()
+    # Should fall back to single get() request
+    reader = EagerStoreReader(traced_store, "test.txt", chunk_size=4)
+
+    # Verify the data is correct
+    assert reader.read() == data
+
+    # Verify single get() was used (fallback)
+    summary = trace.summary()
+    assert summary["total_requests"] == 1
+    assert trace.requests[0].method == "get"
+    assert summary["total_bytes"] == len(data)
+
+
+def test_eager_reader_no_chunk_size():
+    """Test EagerStoreReader uses single get() when no chunk_size specified."""
+    from obspec_utils.tracing import TracingReadableStore, RequestTrace
+
+    # Create test data
+    data = b"0123456789ABCDEF"
+    mock_store = MockReadableStoreWithHead(data)
+
+    # Wrap with tracing
+    trace = RequestTrace()
+    traced_store = TracingReadableStore(mock_store, trace)
+
+    # Create reader without chunk_size
+    reader = EagerStoreReader(traced_store, "test.txt")
+
+    # Verify the data is correct
+    assert reader.read() == data
+
+    # Verify single get() was used
+    summary = trace.summary()
+    assert summary["total_requests"] == 1
+    assert trace.requests[0].method == "get"
+
+
+def test_eager_reader_empty_file():
+    """Test EagerStoreReader handles empty file correctly."""
+    from obspec_utils.tracing import TracingReadableStore, RequestTrace
+
+    # Create empty data
+    data = b""
+    mock_store = MockReadableStoreWithHead(data)
+
+    # Wrap with tracing
+    trace = RequestTrace()
+    traced_store = TracingReadableStore(mock_store, trace)
+
+    # Create reader with chunk_size and file_size=0
+    reader = EagerStoreReader(traced_store, "test.txt", chunk_size=4, file_size=0)
+
+    # Verify the data is empty
+    assert reader.read() == b""
+
+    # No requests should be made for empty file
+    assert trace.total_requests == 0
+
+
+def test_eager_reader_chunk_boundaries():
+    """Test EagerStoreReader handles non-aligned chunk boundaries."""
+    from obspec_utils.tracing import TracingReadableStore, RequestTrace
+
+    # Create test data (10 bytes, not evenly divisible by chunk_size=4)
+    data = b"0123456789"
+    mock_store = MockReadableStoreWithHead(data)
+
+    # Wrap with tracing
+    trace = RequestTrace()
+    traced_store = TracingReadableStore(mock_store, trace)
+
+    # Create reader with chunk_size=4, file_size=10
+    reader = EagerStoreReader(
+        traced_store, "test.txt", chunk_size=4, file_size=len(data)
+    )
+
+    # Verify the data is correct
+    assert reader.read() == data
+
+    # Should be 3 chunks: 0-3 (4 bytes), 4-7 (4 bytes), 8-9 (2 bytes)
+    summary = trace.summary()
+    assert summary["total_requests"] == 3
+    assert summary["total_bytes"] == len(data)
+
+    # Verify chunk sizes
+    lengths = [r.length for r in trace.requests]
+    assert lengths == [4, 4, 2]

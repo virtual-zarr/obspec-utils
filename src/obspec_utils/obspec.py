@@ -317,7 +317,8 @@ class EagerStoreReader:
 
     When `chunk_size` is provided, the file is fetched using parallel chunked
     requests via `get_ranges()`, which can significantly reduce load time for
-    large files by maximizing parallelism.
+    large files by maximizing parallelism. If the store supports the `Head`
+    protocol, the file size will be determined automatically via a HEAD request.
 
     Works with any ReadableStore protocol implementation.
     """
@@ -341,21 +342,34 @@ class EagerStoreReader:
         path
             The path to the file within the store.
         chunk_size
-            If provided along with `file_size`, fetch the file using parallel
-            requests of this size. The file will be divided into chunks and
-            fetched using `get_ranges()`. If None (default) or if `file_size`
-            is not provided, fetch with a single `get()` request.
+            If provided, fetch the file using parallel requests of this size.
+            The file will be divided into chunks and fetched using `get_ranges()`.
+            If the store supports the `Head` protocol, the file size will be
+            determined automatically. Otherwise, `file_size` must be provided
+            for chunked fetching to work. If None (default), fetch with a single
+            `get()` request.
         file_size
-            File size in bytes. Required for chunked fetching - if not provided,
-            the file will be fetched with a single `get()` request regardless
-            of `chunk_size`.
+            File size in bytes. If not provided and `chunk_size` is set, the
+            reader will attempt to get the size via `store.head()` if the store
+            supports the `Head` protocol.
         """
-        if chunk_size is None or file_size is None:
+        if chunk_size is None:
             # Single request - fetch entire file
             result = store.get(path)
             data = bytes(result.buffer())
         else:
-            # Parallel chunked requests (only when file_size is known)
+            # Determine file size if not provided
+            if file_size is None:
+                if hasattr(store, "head") and callable(store.head):
+                    file_size = store.head(path)["size"]
+                else:
+                    # Fall back to single request if we can't determine size
+                    result = store.get(path)
+                    data = bytes(result.buffer())
+                    self._buffer = io.BytesIO(data)
+                    return
+
+            # Parallel chunked requests
             if file_size == 0:
                 data = b""
             else:

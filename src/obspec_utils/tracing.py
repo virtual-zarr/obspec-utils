@@ -203,6 +203,14 @@ class TracingReadableStore(ReadableStore):
         self._trace = trace
         self._on_request = on_request
 
+    def __getattr__(self, name: str) -> Any:
+        """Forward unknown attributes to the underlying store.
+
+        This ensures TracingReadableStore is transparent for any additional
+        methods the underlying store may have (e.g., head() for the Head protocol).
+        """
+        return getattr(self._store, name)
+
     @contextmanager
     def _record(
         self,
