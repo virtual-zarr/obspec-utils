@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import io
 from collections import OrderedDict
 from typing import Protocol, runtime_checkable
@@ -316,9 +315,9 @@ class EagerStoreReader:
     subsequent reads from the in-memory cache. Useful for files that will be
     read multiple times or when seeking is frequent.
 
-    When `chunk_size` is provided, the file is fetched using concurrent chunked
-    requests via `get_ranges_async()`, which can significantly reduce load time
-    for large files by maximizing parallelism.
+    When `chunk_size` is provided, the file is fetched using parallel chunked
+    requests via `get_ranges()`, which can significantly reduce load time for
+    large files by maximizing parallelism.
 
     Works with any ReadableStore protocol implementation.
     """
@@ -342,10 +341,10 @@ class EagerStoreReader:
         path
             The path to the file within the store.
         chunk_size
-            If provided, fetch the file using concurrent async requests of this
-            size. The file will be divided into chunks and fetched using
-            `get_ranges_async()` for true parallelism. If None (default), fetch
-            with a single `get()` request.
+            If provided, fetch the file using parallel requests of this size.
+            The file will be divided into ceil(file_size / chunk_size) chunks
+            and fetched using `get_ranges()`. If None (default), fetch with a
+            single `get()` request.
         file_size
             Optional file size in bytes. If provided along with `chunk_size`,
             avoids an extra request to determine file size. Ignored if
@@ -356,7 +355,7 @@ class EagerStoreReader:
             result = store.get(path)
             data = bytes(result.buffer())
         else:
-            # Concurrent chunked requests using async
+            # Parallel chunked requests
             if file_size is None:
                 result = store.get(path)
                 file_size = result.meta["size"]
@@ -364,35 +363,24 @@ class EagerStoreReader:
             if file_size == 0:
                 data = b""
             else:
-                data = asyncio.run(
-                    self._fetch_chunks_async(store, path, file_size, chunk_size)
-                )
+                # Calculate chunk boundaries
+                num_chunks = (file_size + chunk_size - 1) // chunk_size
+
+                starts = []
+                lengths = []
+                for i in range(num_chunks):
+                    start = i * chunk_size
+                    length = min(chunk_size, file_size - start)
+                    starts.append(start)
+                    lengths.append(length)
+
+                # Fetch all chunks in parallel
+                results = store.get_ranges(path, starts=starts, lengths=lengths)
+
+                # Concatenate chunks into single buffer
+                data = b"".join(bytes(chunk) for chunk in results)
 
         self._buffer = io.BytesIO(data)
-
-    @staticmethod
-    async def _fetch_chunks_async(
-        store: ReadableStore,
-        path: str,
-        file_size: int,
-        chunk_size: int,
-    ) -> bytes:
-        """Fetch file in chunks using concurrent async requests."""
-        num_chunks = (file_size + chunk_size - 1) // chunk_size
-
-        starts = []
-        lengths = []
-        for i in range(num_chunks):
-            start = i * chunk_size
-            length = min(chunk_size, file_size - start)
-            starts.append(start)
-            lengths.append(length)
-
-        # Fetch all chunks concurrently
-        results = await store.get_ranges_async(path, starts=starts, lengths=lengths)
-
-        # Concatenate chunks into single buffer
-        return b"".join(bytes(chunk) for chunk in results)
 
     def read(self, size: int = -1, /) -> bytes:
         """Read up to `size` bytes from the cached file."""
