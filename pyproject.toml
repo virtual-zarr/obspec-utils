@@ -82,7 +82,7 @@ version.source = "vcs"
 hooks.vcs.version-file = "src/obspec_utils/_version.py"
 
 [tool.coverage.run]
-source_pkgs = ["obspec_utils", "tests"]
+source_pkgs = ["obspec_utils"]
 branch = true
 parallel = true
 omit = [
@@ -91,7 +91,6 @@ omit = [
 
 [tool.coverage.paths]
 obspec_utils = ["src/obspec_utils", "*/obspec-utils/src/obspec_utils"]
-tests = ["tests", "*/obspec-utils/tests"]
 
 [tool.coverage.report]
 exclude_lines = [
