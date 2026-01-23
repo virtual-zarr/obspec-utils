@@ -41,6 +41,7 @@ Source = "https://github.com/virtual-zarr/obspec-utils"
 
 [dependency-groups]
 test = [
+    "pandas-stubs",
     "coverage",
     "pytest",
     "pytest-asyncio",
@@ -71,7 +72,6 @@ docs = [
     "markdown-exec[ansi]",
     "ruff",
 ]
-
 [tool.hatch.metadata]
 allow-direct-references = true
 
