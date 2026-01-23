@@ -7,16 +7,39 @@ useful for debugging, profiling, and visualizing access patterns.
 from __future__ import annotations
 
 import time
-from collections.abc import Sequence
+from collections.abc import Generator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypedDict
 
 from obspec_utils.obspec import ReadableStore
+
+if TYPE_CHECKING:
+    from collections.abc import Buffer
+
+    from obspec import GetOptions, GetResult, GetResultAsync
+
+
+class _TraceInfo(TypedDict, total=False):
+    """Info collected during a traced operation."""
+
+    start: int
+    length: int
+    range_style: Literal["end", "length"] | None
 
 
 @dataclass
 class RequestRecord:
-    """Record of a single range request."""
+    """Record of a single range request.
+
+    Note
+    ----
+    The ``duration`` field measures the time spent in the store method call.
+    For ``get_range`` and ``get_ranges``, this includes the actual data transfer.
+    For ``get`` and ``get_async``, the duration may not include the full transfer
+    time if the underlying store returns a lazy ``GetResult`` whose data is only
+    fetched when ``.buffer()`` is called.
+    """
 
     path: str
     start: int
@@ -24,7 +47,8 @@ class RequestRecord:
     end: int  # start + length
     timestamp: float
     duration: float | None = None
-    method: str = "get_range"  # "get_range", "get_ranges", "get"
+    method: Literal["get", "get_range", "get_ranges"] = "get_range"
+    range_style: Literal["end", "length"] | None = None
 
 
 @dataclass
@@ -40,7 +64,8 @@ class RequestTrace:
         length: int,
         timestamp: float,
         duration: float | None = None,
-        method: str = "get_range",
+        method: Literal["get", "get_range", "get_ranges"] = "get_range",
+        range_style: Literal["end", "length"] | None = None,
     ) -> None:
         """Add a request record."""
         self.requests.append(
@@ -52,6 +77,7 @@ class RequestTrace:
                 timestamp=timestamp,
                 duration=duration,
                 method=method,
+                range_style=range_style,
             )
         )
 
@@ -73,6 +99,7 @@ class RequestTrace:
                     "timestamp",
                     "duration",
                     "method",
+                    "range_style",
                 ]
             )
 
@@ -86,6 +113,7 @@ class RequestTrace:
                     "timestamp": r.timestamp,
                     "duration": r.duration,
                     "method": r.method,
+                    "range_style": r.range_style,
                 }
                 for r in self.requests
             ]
@@ -123,7 +151,7 @@ class RequestTrace:
         }
 
 
-class TracingStore:
+class TracingReadableStore(ReadableStore):
     """
     A wrapper that traces all requests made to an underlying store.
 
@@ -134,14 +162,14 @@ class TracingStore:
     --------
     ```python
     import obstore as obs
-    from obspec_utils.tracing import TracingStore, RequestTrace
+    from obspec_utils.tracing import TracingReadableStore, RequestTrace
 
     # Create the underlying store
     store = obs.store.from_url("s3://bucket", region="us-east-1")
 
     # Wrap with tracing
     trace = RequestTrace()
-    traced_store = TracingStore(store, trace)
+    traced_store = TracingReadableStore(store, trace)
 
     # Use traced_store in place of store
     # ... do operations ...
@@ -175,46 +203,81 @@ class TracingStore:
         self._trace = trace
         self._on_request = on_request
 
+    @contextmanager
     def _record(
         self,
         path: str,
-        start: int,
-        length: int,
-        duration: float | None = None,
-        method: str = "get_range",
+        method: Literal["get", "get_range", "get_ranges"],
+    ) -> Generator[_TraceInfo, None, None]:
+        """Context manager to record a request with automatic timing.
+
+        Yields a dict that the caller populates with start, length, and range_style.
+        Duration is measured automatically. Records are saved even if the operation
+        raises an exception.
+        """
+        info: _TraceInfo = {}
+        start_time = time.time()
+        try:
+            yield info
+        finally:
+            duration = time.time() - start_time
+            self._trace.add(
+                path=path,
+                start=info.get("start", 0),
+                length=info.get("length", 0),
+                timestamp=start_time,
+                duration=duration,
+                method=method,
+                range_style=info.get("range_style"),
+            )
+            if self._on_request:
+                self._on_request(self._trace.requests[-1])
+
+    def _record_ranges(
+        self,
+        path: str,
+        starts: Sequence[int],
+        lengths: Sequence[int],
+        range_style: Literal["end", "length"],
+        duration: float,
     ) -> None:
-        """Record a request and call the callback if set."""
-        self._trace.add(
-            path=path,
-            start=start,
-            length=length,
-            timestamp=time.time(),
-            duration=duration,
-            method=method,
-        )
-        if self._on_request:
-            self._on_request(self._trace.requests[-1])
+        """Record multiple range requests from a single get_ranges call."""
+        per_request_duration = duration / len(starts) if starts else 0
+        timestamp = time.time()
+        for start, length in zip(starts, lengths):
+            self._trace.add(
+                path=path,
+                start=start,
+                length=length,
+                timestamp=timestamp,
+                duration=per_request_duration,
+                method="get_ranges",
+                range_style=range_style,
+            )
+            if self._on_request:
+                self._on_request(self._trace.requests[-1])
 
     # Implement ReadableStore protocol by delegating to underlying store
 
-    def get(self, path: str, *, options: dict | None = None):
+    def get(self, path: str, *, options: GetOptions | None = None) -> GetResult:
         """Get entire file (delegates to underlying store)."""
-        start_time = time.time()
-        result = self._store.get(path, options=options)
-        duration = time.time() - start_time
-        # Record as a full-file get
-        size = result.meta.get("size", 0) if hasattr(result, "meta") else 0
-        self._record(path, 0, size, duration=duration, method="get")
-        return result
+        with self._record(path, "get") as info:
+            result = self._store.get(path, options=options)
+            size = result.meta.get("size", 0) if hasattr(result, "meta") else 0
+            info["start"] = 0
+            info["length"] = size
+            return result
 
-    async def get_async(self, path: str, *, options: dict | None = None):
+    async def get_async(
+        self, path: str, *, options: GetOptions | None = None
+    ) -> GetResultAsync:
         """Get entire file async (delegates to underlying store)."""
-        start_time = time.time()
-        result = await self._store.get_async(path, options=options)
-        duration = time.time() - start_time
-        size = result.meta.get("size", 0) if hasattr(result, "meta") else 0
-        self._record(path, 0, size, duration=duration, method="get")
-        return result
+        with self._record(path, "get") as info:
+            result = await self._store.get_async(path, options=options)
+            size = result.meta.get("size", 0) if hasattr(result, "meta") else 0
+            info["start"] = 0
+            info["length"] = size
+            return result
 
     def get_range(
         self,
@@ -223,25 +286,20 @@ class TracingStore:
         start: int,
         end: int | None = None,
         length: int | None = None,
-    ):
+    ) -> Buffer:
         """Get a byte range (delegates to underlying store)."""
-        # Calculate length for recording
-        if length is not None:
-            record_length = length
-        elif end is not None:
-            record_length = end - start
-        else:
-            raise ValueError("Either 'end' or 'length' must be provided")
-
-        start_time = time.time()
-        # Pass through only the parameter that was provided
-        if length is not None:
-            result = self._store.get_range(path, start=start, length=length)
-        else:
-            result = self._store.get_range(path, start=start, end=end)
-        duration = time.time() - start_time
-        self._record(path, start, record_length, duration=duration, method="get_range")
-        return result
+        with self._record(path, "get_range") as info:
+            info["start"] = start
+            if length is not None:
+                info["length"] = length
+                info["range_style"] = "length"
+                return self._store.get_range(path, start=start, length=length)
+            elif end is not None:
+                info["length"] = end - start
+                info["range_style"] = "end"
+                return self._store.get_range(path, start=start, end=end)
+            else:
+                raise ValueError("Either 'end' or 'length' must be provided")
 
     async def get_range_async(
         self,
@@ -250,25 +308,22 @@ class TracingStore:
         start: int,
         end: int | None = None,
         length: int | None = None,
-    ):
+    ) -> Buffer:
         """Get a byte range async (delegates to underlying store)."""
-        # Calculate length for recording
-        if length is not None:
-            record_length = length
-        elif end is not None:
-            record_length = end - start
-        else:
-            raise ValueError("Either 'end' or 'length' must be provided")
-
-        start_time = time.time()
-        # Pass through only the parameter that was provided
-        if length is not None:
-            result = await self._store.get_range_async(path, start=start, length=length)
-        else:
-            result = await self._store.get_range_async(path, start=start, end=end)
-        duration = time.time() - start_time
-        self._record(path, start, record_length, duration=duration, method="get_range")
-        return result
+        with self._record(path, "get_range") as info:
+            info["start"] = start
+            if length is not None:
+                info["length"] = length
+                info["range_style"] = "length"
+                return await self._store.get_range_async(
+                    path, start=start, length=length
+                )
+            elif end is not None:
+                info["length"] = end - start
+                info["range_style"] = "end"
+                return await self._store.get_range_async(path, start=start, end=end)
+            else:
+                raise ValueError("Either 'end' or 'length' must be provided")
 
     def get_ranges(
         self,
@@ -277,31 +332,20 @@ class TracingStore:
         starts: Sequence[int],
         ends: Sequence[int] | None = None,
         lengths: Sequence[int] | None = None,
-    ):
+    ) -> Sequence[Buffer]:
         """Get multiple byte ranges (delegates to underlying store)."""
-        # Calculate lengths for recording
-        if lengths is not None:
-            record_lengths = list(lengths)
-        elif ends is not None:
-            record_lengths = [end - start for start, end in zip(starts, ends)]
-        else:
-            raise ValueError("Either 'ends' or 'lengths' must be provided")
-
         start_time = time.time()
-        # Pass through only the parameter that was provided
         if lengths is not None:
             results = self._store.get_ranges(path, starts=starts, lengths=lengths)
-        else:
+            duration = time.time() - start_time
+            self._record_ranges(path, starts, list(lengths), "length", duration)
+        elif ends is not None:
             results = self._store.get_ranges(path, starts=starts, ends=ends)
-        duration = time.time() - start_time
-
-        # Record each range request
-        per_request_duration = duration / len(starts) if starts else 0
-        for start, length in zip(starts, record_lengths):
-            self._record(
-                path, start, length, duration=per_request_duration, method="get_ranges"
-            )
-
+            duration = time.time() - start_time
+            record_lengths = [end - start for start, end in zip(starts, ends)]
+            self._record_ranges(path, starts, record_lengths, "end", duration)
+        else:
+            raise ValueError("Either 'ends' or 'lengths' must be provided")
         return results
 
     async def get_ranges_async(
@@ -311,37 +355,27 @@ class TracingStore:
         starts: Sequence[int],
         ends: Sequence[int] | None = None,
         lengths: Sequence[int] | None = None,
-    ):
+    ) -> Sequence[Buffer]:
         """Get multiple byte ranges async (delegates to underlying store)."""
-        # Calculate lengths for recording
-        if lengths is not None:
-            record_lengths = list(lengths)
-        elif ends is not None:
-            record_lengths = [end - start for start, end in zip(starts, ends)]
-        else:
-            raise ValueError("Either 'ends' or 'lengths' must be provided")
-
         start_time = time.time()
-        # Pass through only the parameter that was provided
         if lengths is not None:
             results = await self._store.get_ranges_async(
                 path, starts=starts, lengths=lengths
             )
-        else:
+            duration = time.time() - start_time
+            self._record_ranges(path, starts, list(lengths), "length", duration)
+        elif ends is not None:
             results = await self._store.get_ranges_async(path, starts=starts, ends=ends)
-        duration = time.time() - start_time
-
-        per_request_duration = duration / len(starts) if starts else 0
-        for start, length in zip(starts, record_lengths):
-            self._record(
-                path, start, length, duration=per_request_duration, method="get_ranges"
-            )
-
+            duration = time.time() - start_time
+            record_lengths = [end - start for start, end in zip(starts, ends)]
+            self._record_ranges(path, starts, record_lengths, "end", duration)
+        else:
+            raise ValueError("Either 'ends' or 'lengths' must be provided")
         return results
 
 
 __all__ = [
     "RequestRecord",
     "RequestTrace",
-    "TracingStore",
+    "TracingReadableStore",
 ]

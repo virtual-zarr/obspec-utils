@@ -289,10 +289,10 @@ class AiohttpStore(ReadableStore):
                 request_headers["Range"] = f"bytes={start}-{end - 1}"
                 byte_range = (start, end)
             elif isinstance(range_opt, dict):
-                if "offset" in range_opt:
-                    request_headers["Range"] = f"bytes={range_opt['offset']}-"
-                elif "suffix" in range_opt:
-                    request_headers["Range"] = f"bytes=-{range_opt['suffix']}"
+                if (offset := range_opt.get("offset")) is not None:
+                    request_headers["Range"] = f"bytes={offset}-"
+                elif (suffix := range_opt.get("suffix")) is not None:
+                    request_headers["Range"] = f"bytes=-{suffix}"
 
         async with session.get(url, headers=request_headers) as response:
             response.raise_for_status()
