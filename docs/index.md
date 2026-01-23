@@ -113,8 +113,8 @@ data = parallel_reader.read(1000)
 
 ### Code standards - using prek
 
-> [!NOTE]
-> These instructions are replicated from [zarr-python](https://github.com/zarr-developers/zarr-python).
+!!! note
+    These instructions are replicated from [zarr-python](https://github.com/zarr-developers/zarr-python).
 
 All code must conform to the PEP8 standard. Regarding line length, lines up to 100 characters are allowed, although please try to keep under 90 wherever possible.
 
