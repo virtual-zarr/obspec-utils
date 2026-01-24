@@ -14,9 +14,12 @@ extra:
 
 nav:
   - "index.md"
+  - "Caching Architecture": "caching-architecture.md"
   - "API":
       - Typing: "api/typing.md"
       - Aiohttp Store Adapters: "api/aiohttp.md"
+      - Caching: "api/cache.md"
+      - Splitting: "api/splitting.md"
       - Obspec File Readers: "api/obspec.md"
       - Store Registries: "api/registry.md"
       - Tracing: "api/tracing.md"
