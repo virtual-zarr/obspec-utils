@@ -601,3 +601,45 @@ def test_eager_reader_chunk_boundaries():
     # Verify chunk sizes
     lengths = [r.length for r in trace.requests]
     assert lengths == [4, 4, 2]
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_context_manager(ReaderClass):
+    """Test that readers work as context managers and release resources."""
+    memstore = MemoryStore()
+    memstore.put("test.txt", b"hello world")
+
+    with ReaderClass(memstore, "test.txt") as reader:
+        assert reader.read(5) == b"hello"
+        assert reader.tell() == 5
+
+    # After exiting context, internal buffers should be cleared
+    if hasattr(reader, "_buffer"):
+        if isinstance(reader._buffer, bytes):
+            assert reader._buffer == b""
+        else:
+            # BytesIO - check it's empty
+            assert reader._buffer.getvalue() == b""
+    if hasattr(reader, "_cache"):
+        assert len(reader._cache) == 0
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_close(ReaderClass):
+    """Test that readers can be explicitly closed."""
+    memstore = MemoryStore()
+    memstore.put("test.txt", b"hello world")
+
+    reader = ReaderClass(memstore, "test.txt")
+    assert reader.read(5) == b"hello"
+
+    reader.close()
+
+    # After close, internal buffers should be cleared
+    if hasattr(reader, "_buffer"):
+        if isinstance(reader._buffer, bytes):
+            assert reader._buffer == b""
+        else:
+            assert reader._buffer.getvalue() == b""
+    if hasattr(reader, "_cache"):
+        assert len(reader._cache) == 0
