@@ -309,6 +309,73 @@ class TestAsyncOperations:
         assert bytes(ranges[0]) == b"hello"
         assert bytes(ranges[1]) == b"world"
 
+    @pytest.mark.asyncio
+    async def test_async_cache_hit_updates_lru(self):
+        """Async access to already-cached file updates LRU order."""
+        source = MemoryStore()
+        source.put("file1.txt", b"a" * 100)
+        source.put("file2.txt", b"b" * 100)
+        source.put("file3.txt", b"c" * 100)
+
+        cached = CachingReadableStore(source, max_size=200)
+
+        # Cache file1 and file2 (sync or async doesn't matter)
+        cached.get("file1.txt")
+        cached.get("file2.txt")
+        assert cached.cached_paths == ["file1.txt", "file2.txt"]
+
+        # Async access to file1 - should hit cache and update LRU order
+        result = await cached.get_async("file1.txt")
+        assert bytes(await result.buffer_async()) == b"a" * 100
+        assert cached.cached_paths == ["file2.txt", "file1.txt"]
+
+        # Cache file3 - should evict file2 (now oldest)
+        await cached.get_async("file3.txt")
+        assert cached.cached_paths == ["file1.txt", "file3.txt"]
+
+    @pytest.mark.asyncio
+    async def test_concurrent_async_fetch_race_condition(self):
+        """When two coroutines fetch same file, second finds it already cached."""
+        import asyncio
+
+        source = MemoryStore()
+        source.put("file.txt", b"hello world")
+
+        # Wrap store to add delay during fetch, creating race window
+        class SlowStore:
+            def __init__(self, store):
+                self._store = store
+                self.fetch_count = 0
+
+            async def get_async(self, path):
+                self.fetch_count += 1
+                # Delay to ensure both coroutines start fetching before either finishes
+                await asyncio.sleep(0.05)
+                return await self._store.get_async(path)
+
+            def __getattr__(self, name):
+                return getattr(self._store, name)
+
+        slow_source = SlowStore(source)
+        cached = CachingReadableStore(slow_source)
+
+        # Launch two concurrent fetches for the same file
+        results = await asyncio.gather(
+            cached.get_async("file.txt"),
+            cached.get_async("file.txt"),
+        )
+
+        # Both should return correct data
+        assert bytes(await results[0].buffer_async()) == b"hello world"
+        assert bytes(await results[1].buffer_async()) == b"hello world"
+
+        # Both coroutines should have started fetching (race condition)
+        assert slow_source.fetch_count == 2
+
+        # But file should only be cached once
+        assert cached.cached_paths == ["file.txt"]
+        assert cached.cache_size == len(b"hello world")
+
 
 class TestAttributeForwarding:
     """Tests for attribute forwarding to underlying store."""

@@ -257,22 +257,42 @@ For workloads requiring cross-worker cache sharing, consider:
 | Distributed workers, shared files | Consider external caching |
 | One-time file processing | No (use reader-level only) |
 
-## Future Directions
+## Store Wrappers
 
-### ParallelFetchingStore (Planned)
+### SplittingReadableStore
 
-A store-level wrapper that accelerates `get()` using parallel `get_ranges()`:
+`SplittingReadableStore` accelerates `get()` by splitting large requests into parallel `get_ranges()`:
 
 ```python
-# Hypothetical API
-fast_store = ParallelFetchingStore(
+from obspec_utils.splitting import SplittingReadableStore
+
+fast_store = SplittingReadableStore(
     store,
     request_size=12 * 1024 * 1024,  # 12 MB per request
     max_concurrent_requests=18,
 )
 ```
 
-This would extract the parallel fetching logic from `EagerStoreReader` into a composable wrapper, allowing any store to benefit from parallel fetching without changing the reader.
+This extracts the parallel fetching logic from `EagerStoreReader` into a composable wrapper. It composes naturally with `CachingReadableStore`:
+
+```python
+from obspec_utils.splitting import SplittingReadableStore
+from obspec_utils.cache import CachingReadableStore
+
+# Compose: fast parallel fetches + caching
+store = S3Store(bucket="my-bucket")
+store = SplittingReadableStore(store)  # Split large fetches
+store = CachingReadableStore(store)    # Cache results
+
+# First get(): parallel fetch -> cache
+# Second get(): served from cache
+```
+
+**Characteristics:**
+
+- Only affects `get()` and `get_async()` - range requests pass through unchanged
+- Requires `head()` support to determine file size (falls back to single request otherwise)
+- Tuned for cloud storage (12 MB chunks, 18 concurrent requests by default)
 
 ## Summary
 

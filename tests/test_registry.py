@@ -56,6 +56,51 @@ def test_obstore_satisfies_readable_store_protocol():
     assert isinstance(memstore, ReadableStore)
 
 
+def test_caching_store_satisfies_readable_store_protocol():
+    """Verify that CachingReadableStore satisfies the ReadableStore protocol."""
+    from obspec_utils.cache import CachingReadableStore
+
+    memstore = MemoryStore()
+    cached = CachingReadableStore(memstore)
+    assert isinstance(cached, ReadableStore)
+
+
+def test_splitting_store_satisfies_readable_store_protocol():
+    """Verify that SplittingReadableStore satisfies the ReadableStore protocol."""
+    from obspec_utils.splitting import SplittingReadableStore
+
+    memstore = MemoryStore()
+    splitting = SplittingReadableStore(memstore)
+    assert isinstance(splitting, ReadableStore)
+
+
+def test_store_wrappers_compose():
+    """Verify that store wrappers can be composed."""
+    from obspec_utils.cache import CachingReadableStore
+    from obspec_utils.splitting import SplittingReadableStore
+    from obspec_utils.tracing import TracingReadableStore, RequestTrace
+
+    memstore = MemoryStore()
+    memstore.put("file.txt", b"hello world")
+
+    # Compose: memstore -> splitting -> caching -> tracing
+    store = SplittingReadableStore(memstore)
+    store = CachingReadableStore(store)
+    trace = RequestTrace()
+    store = TracingReadableStore(store, trace)
+
+    # All wrappers satisfy ReadableStore
+    assert isinstance(store, ReadableStore)
+
+    # Can use through registry
+    registry = ObjectStoreRegistry({"mem://test": store})
+    resolved_store, path = registry.resolve("mem://test/file.txt")
+
+    # Operations work through the chain
+    result = resolved_store.get(path)
+    assert bytes(result.buffer()) == b"hello world"
+
+
 def test_registry_with_custom_readable_store():
     """Test that registry works with any ReadableStore protocol implementation."""
     from collections.abc import Sequence
