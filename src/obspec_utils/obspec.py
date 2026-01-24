@@ -172,6 +172,29 @@ class BufferedStoreReader:
 
     The reader uses `get_range()` calls to fetch data on-demand, with optional
     read-ahead buffering for efficiency.
+
+    When to Use
+    -----------
+    Use BufferedStoreReader when:
+
+    - **Sequential reading with rare backward seeks**: Best for workloads that
+      mostly read forward through a file with rare backward seeks.
+    - **Simple use cases**: When you need a basic file-like interface without
+      caching or parallel fetching.
+    - **Streaming data**: Processing data as it arrives without loading the full
+      file into memory.
+
+    Consider alternatives when:
+
+    - You need to read the entire file anyway → use [EagerStoreReader][obspec_utils.obspec.EagerStoreReader]
+    - You have many non-contiguous reads → use [ParallelStoreReader][obspec_utils.obspec.ParallelStoreReader]
+    - You'll repeatedly access the same regions → use [EagerStoreReader][obspec_utils.obspec.EagerStoreReader]
+      or [ParallelStoreReader][obspec_utils.obspec.ParallelStoreReader]
+
+    See Also
+    --------
+    [EagerStoreReader][obspec_utils.obspec.EagerStoreReader] : Loads entire file into memory for fast random access.
+    [ParallelStoreReader][obspec_utils.obspec.ParallelStoreReader] : Uses parallel requests with LRU caching for sparse access.
     """
 
     def __init__(
@@ -334,6 +357,30 @@ class EagerStoreReader:
     protocol, the file size will be determined automatically via a HEAD request.
 
     Works with any ReadableStore protocol implementation.
+
+    When to Use
+    -----------
+    Use EagerStoreReader when:
+
+    - **Reading the entire file**: When you know you'll need most or all of the
+      file's contents.
+    - **Repeated random access**: After the initial load, any byte is accessible
+      with no network latency.
+    - **Small to medium files**: Files that fit comfortably in memory.
+    - **Parallel initial fetch**: With `chunk_size` set, the initial load uses
+      parallel requests for faster download.
+
+    Consider alternatives when:
+
+    - You only need a small portion of a large file → use [ParallelStoreReader][obspec_utils.obspec.ParallelStoreReader]
+    - Memory is constrained → use [ParallelStoreReader][obspec_utils.obspec.ParallelStoreReader] (bounded cache)
+      or [BufferedStoreReader][obspec_utils.obspec.BufferedStoreReader]
+    - You're streaming sequentially and won't revisit data → use [BufferedStoreReader][obspec_utils.obspec.BufferedStoreReader]
+
+    See Also
+    --------
+    [BufferedStoreReader][obspec_utils.obspec.BufferedStoreReader] : On-demand reads with read-ahead buffering.
+    [ParallelStoreReader][obspec_utils.obspec.ParallelStoreReader] : Uses parallel requests with LRU caching for sparse access.
     """
 
     def __init__(
@@ -447,9 +494,33 @@ class ParallelStoreReader:
     to avoid redundant fetches.
 
     This is particularly efficient for workloads that access multiple non-contiguous
-    regions of a file, such as reading Zarr/HDF5 datasets.
+    regions of a file.
 
     Works with any ReadableStore protocol implementation.
+
+    When to Use
+    -----------
+    Use ParallelStoreReader when:
+
+    - **Sparse access patterns**: Reading many non-contiguous regions of a file.
+    - **Large files with partial reads**: When you only need portions of a large
+      file and don't want to load it all into memory.
+    - **Memory-constrained environments**: The LRU cache has bounded memory usage
+      (`chunk_size * max_cached_chunks`), regardless of file size.
+    - **Unknown access patterns**: When you don't know upfront which parts of the
+      file you'll need.
+
+    Consider alternatives when:
+
+    - You'll read the entire file anyway → use [EagerStoreReader][obspec_utils.obspec.EagerStoreReader]
+    - Access is purely sequential → use [BufferedStoreReader][obspec_utils.obspec.BufferedStoreReader]
+    - You need repeated access to more data than fits in the cache → use
+      [EagerStoreReader][obspec_utils.obspec.EagerStoreReader] to avoid re-fetching evicted chunks
+
+    See Also
+    --------
+    [BufferedStoreReader][obspec_utils.obspec.BufferedStoreReader] : On-demand reads with read-ahead buffering.
+    [EagerStoreReader][obspec_utils.obspec.EagerStoreReader] : Loads entire file into memory for fast random access.
     """
 
     def __init__(
