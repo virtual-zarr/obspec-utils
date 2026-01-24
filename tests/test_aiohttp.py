@@ -332,6 +332,38 @@ async def test_get_async_with_tuple_range_option(minio_test_file):
 
 @requires_minio
 @pytest.mark.asyncio
+async def test_get_async_with_offset_range_option(minio_test_file):
+    """Fetches from offset to end using options with offset dict."""
+    async with AiohttpStore(minio_test_file["base_url"]) as store:
+        # Use options={"range": {"offset": n}} to fetch from offset to end
+        result = await store.get_async(
+            minio_test_file["path"],
+            options={"range": {"offset": 10}},
+        )
+        data = await result.buffer_async()
+
+    # File content is b"0123456789ABCDEF", offset 10 to end is b"ABCDEF"
+    assert data == b"ABCDEF"
+
+
+@requires_minio
+@pytest.mark.asyncio
+async def test_get_async_with_suffix_range_option(minio_test_file):
+    """Fetches last N bytes using options with suffix dict."""
+    async with AiohttpStore(minio_test_file["base_url"]) as store:
+        # Use options={"range": {"suffix": n}} to fetch last n bytes
+        result = await store.get_async(
+            minio_test_file["path"],
+            options={"range": {"suffix": 6}},
+        )
+        data = await result.buffer_async()
+
+    # File content is b"0123456789ABCDEF", last 6 bytes is b"ABCDEF"
+    assert data == b"ABCDEF"
+
+
+@requires_minio
+@pytest.mark.asyncio
 async def test_get_range_async_with_end(minio_test_file):
     """Fetches byte range using end parameter."""
     async with AiohttpStore(minio_test_file["base_url"]) as store:
