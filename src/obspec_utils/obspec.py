@@ -236,7 +236,7 @@ class BufferedStoreReader:
         Parameters
         ----------
         size
-            Number of bytes to read. If -1, read the entire file.
+            Number of bytes to read. If -1, read from current position to end.
 
         Returns
         -------
@@ -244,7 +244,11 @@ class BufferedStoreReader:
             The data read from the file.
         """
         if size == -1:
-            return self.readall()
+            # Read from current position to end
+            file_size = self._get_size()
+            size = file_size - self._position
+            if size <= 0:
+                return b""
 
         # Check if we can satisfy from buffer
         buffer_end = self._buffer_start + len(self._buffer)
@@ -258,8 +262,14 @@ class BufferedStoreReader:
                 self._position += len(data)
                 return data
 
-        # Need to fetch from store
-        fetch_size = max(size, self._buffer_size)
+        # Check if we're at or past EOF
+        file_size = self._get_size()
+        if self._position >= file_size:
+            return b""
+
+        # Need to fetch from store - clamp to remaining bytes
+        remaining = file_size - self._position
+        fetch_size = min(max(size, self._buffer_size), remaining)
         data = bytes(
             self._store.get_range(self._path, start=self._position, length=fetch_size)
         )
@@ -601,17 +611,20 @@ class ParallelStoreReader:
         Parameters
         ----------
         size
-            Number of bytes to read. If -1, read the entire file.
+            Number of bytes to read. If -1, read from current position to end.
 
         Returns
         -------
         bytes
             The data read from the file.
         """
-        if size == -1:
-            return self.readall()
-
         file_size = self._get_size()
+
+        if size == -1:
+            # Read from current position to end
+            size = file_size - self._position
+            if size <= 0:
+                return b""
 
         # Clamp to remaining bytes
         remaining = file_size - self._position

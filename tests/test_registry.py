@@ -1,3 +1,4 @@
+from io import BytesIO
 import pytest
 from obstore.store import MemoryStore
 
@@ -254,6 +255,27 @@ def test_reader_read_past_end(ReaderClass):
     # For others, they clamp to file size
     data = reader.read(100)
     assert data == b"short"
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_read_minus_one(ReaderClass):
+    """Test read(-1) reads entire file for all readers."""
+    memstore = MemoryStore()
+    memstore.put("test.txt", b"hello world")
+
+    reader = ReaderClass(memstore, "test.txt")
+    assert reader.read(-1) == b"hello world"
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_read_minus_one_from_middle(ReaderClass):
+    """Test read(-1) reads from current position to end."""
+    memstore = MemoryStore()
+    memstore.put("test.txt", b"hello world")
+
+    reader = ReaderClass(memstore, "test.txt")
+    reader.seek(6)
+    assert reader.read(-1) == b"world"
 
 
 def test_buffered_reader_buffering():
@@ -1039,3 +1061,254 @@ def test_iter_stores_multiple():
     assert store1 in stores
     assert store2 in stores
     assert store3 in stores
+
+
+# --- BytesIO Consistency Tests ---
+# These tests verify that readers behave consistently with Python's BytesIO
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_read_matches_bytesio(ReaderClass):
+    """Reader read(n) matches BytesIO behavior."""
+    data = b"hello world test data"
+
+    ref = BytesIO(data)
+    memstore = MemoryStore()
+    memstore.put("test.txt", data)
+    reader = ReaderClass(memstore, "test.txt")
+
+    assert reader.read(5) == ref.read(5)
+    assert reader.tell() == ref.tell()
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_read_zero_matches_bytesio(ReaderClass):
+    """Reader read(0) returns empty bytes like BytesIO."""
+    data = b"hello world"
+
+    ref = BytesIO(data)
+    memstore = MemoryStore()
+    memstore.put("test.txt", data)
+    reader = ReaderClass(memstore, "test.txt")
+
+    assert reader.read(0) == ref.read(0)
+    assert reader.read(0) == b""
+    assert reader.tell() == ref.tell()
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_read_all_matches_bytesio(ReaderClass):
+    """Reader read(-1) matches BytesIO.read(-1)."""
+    data = b"hello world test data"
+
+    ref = BytesIO(data)
+    memstore = MemoryStore()
+    memstore.put("test.txt", data)
+    reader = ReaderClass(memstore, "test.txt")
+
+    assert reader.read(-1) == ref.read(-1)
+    assert reader.tell() == ref.tell()
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_read_no_arg_matches_bytesio(ReaderClass):
+    """Reader read() with no argument matches BytesIO."""
+    data = b"hello world test data"
+
+    ref = BytesIO(data)
+    memstore = MemoryStore()
+    memstore.put("test.txt", data)
+    reader = ReaderClass(memstore, "test.txt")
+
+    assert reader.read() == ref.read()
+    assert reader.tell() == ref.tell()
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_sequential_reads_match_bytesio(ReaderClass):
+    """Multiple consecutive reads match BytesIO behavior."""
+    data = b"0123456789ABCDEF"
+
+    ref = BytesIO(data)
+    memstore = MemoryStore()
+    memstore.put("test.txt", data)
+    reader = ReaderClass(memstore, "test.txt")
+
+    for _ in range(4):
+        assert reader.read(4) == ref.read(4)
+        assert reader.tell() == ref.tell()
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_seek_set_matches_bytesio(ReaderClass):
+    """Reader seek(n, SEEK_SET) matches BytesIO."""
+    data = b"hello world test data"
+
+    ref = BytesIO(data)
+    memstore = MemoryStore()
+    memstore.put("test.txt", data)
+    reader = ReaderClass(memstore, "test.txt")
+
+    assert reader.seek(5) == ref.seek(5)
+    assert reader.tell() == ref.tell()
+    assert reader.read(5) == ref.read(5)
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_seek_cur_matches_bytesio(ReaderClass):
+    """Reader seek(n, SEEK_CUR) matches BytesIO."""
+    data = b"hello world test data"
+
+    ref = BytesIO(data)
+    memstore = MemoryStore()
+    memstore.put("test.txt", data)
+    reader = ReaderClass(memstore, "test.txt")
+
+    # Move forward first
+    reader.read(5)
+    ref.read(5)
+
+    # Then seek relative
+    assert reader.seek(3, 1) == ref.seek(3, 1)
+    assert reader.tell() == ref.tell()
+    assert reader.read(5) == ref.read(5)
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_seek_end_matches_bytesio(ReaderClass):
+    """Reader seek(n, SEEK_END) matches BytesIO."""
+    data = b"hello world test data"
+
+    ref = BytesIO(data)
+    memstore = MemoryStore()
+    memstore.put("test.txt", data)
+    reader = ReaderClass(memstore, "test.txt")
+
+    assert reader.seek(-5, 2) == ref.seek(-5, 2)
+    assert reader.tell() == ref.tell()
+    assert reader.read() == ref.read()
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_seek_returns_position_matches_bytesio(ReaderClass):
+    """Reader seek() return value matches BytesIO."""
+    data = b"hello world test data"
+
+    ref = BytesIO(data)
+    memstore = MemoryStore()
+    memstore.put("test.txt", data)
+    reader = ReaderClass(memstore, "test.txt")
+
+    assert reader.seek(10) == ref.seek(10)
+    assert reader.seek(5, 1) == ref.seek(5, 1)
+    assert reader.seek(-3, 2) == ref.seek(-3, 2)
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_tell_matches_bytesio(ReaderClass):
+    """Reader tell() matches BytesIO after various operations."""
+    data = b"hello world test data"
+
+    ref = BytesIO(data)
+    memstore = MemoryStore()
+    memstore.put("test.txt", data)
+    reader = ReaderClass(memstore, "test.txt")
+
+    assert reader.tell() == ref.tell()
+    reader.read(5)
+    ref.read(5)
+    assert reader.tell() == ref.tell()
+    reader.seek(10)
+    ref.seek(10)
+    assert reader.tell() == ref.tell()
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_read_past_eof_matches_bytesio(ReaderClass):
+    """Reading past EOF matches BytesIO behavior."""
+    data = b"short"
+
+    ref = BytesIO(data)
+    memstore = MemoryStore()
+    memstore.put("test.txt", data)
+    reader = ReaderClass(memstore, "test.txt")
+
+    assert reader.read(100) == ref.read(100)
+    assert reader.tell() == ref.tell()
+    # Reading again at EOF should return empty
+    assert reader.read(10) == ref.read(10)
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_seek_negative_cur_matches_bytesio(ReaderClass):
+    """Reader seek(-n, SEEK_CUR) matches BytesIO."""
+    data = b"hello world test data"
+
+    ref = BytesIO(data)
+    memstore = MemoryStore()
+    memstore.put("test.txt", data)
+    reader = ReaderClass(memstore, "test.txt")
+
+    # Move forward first
+    reader.read(10)
+    ref.read(10)
+
+    # Then seek backward
+    assert reader.seek(-5, 1) == ref.seek(-5, 1)
+    assert reader.tell() == ref.tell()
+    assert reader.read(5) == ref.read(5)
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_empty_file_matches_bytesio(ReaderClass):
+    """Empty file behavior matches BytesIO."""
+    data = b""
+
+    ref = BytesIO(data)
+    memstore = MemoryStore()
+    memstore.put("test.txt", data)
+    reader = ReaderClass(memstore, "test.txt")
+
+    assert reader.read() == ref.read()
+    assert reader.tell() == ref.tell()
+    assert reader.read(10) == ref.read(10)
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_seek_read_sequence_matches_bytesio(ReaderClass):
+    """Interleaved seek/read operations match BytesIO."""
+    data = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+    ref = BytesIO(data)
+    memstore = MemoryStore()
+    memstore.put("test.txt", data)
+    reader = ReaderClass(memstore, "test.txt")
+
+    # Complex sequence of operations
+    assert reader.read(10) == ref.read(10)
+    assert reader.seek(5) == ref.seek(5)
+    assert reader.read(5) == ref.read(5)
+    assert reader.seek(-3, 1) == ref.seek(-3, 1)
+    assert reader.read(10) == ref.read(10)
+    assert reader.seek(-5, 2) == ref.seek(-5, 2)
+    assert reader.read() == ref.read()
+    assert reader.tell() == ref.tell()
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_seek_invalid_whence_raises(ReaderClass):
+    """Reader raises ValueError for invalid whence like BytesIO."""
+    data = b"hello world"
+
+    ref = BytesIO(data)
+    memstore = MemoryStore()
+    memstore.put("test.txt", data)
+    reader = ReaderClass(memstore, "test.txt")
+
+    # Verify BytesIO raises ValueError for invalid whence
+    with pytest.raises(ValueError):
+        ref.seek(0, 3)
+
+    # Reader should match
+    with pytest.raises(ValueError):
+        reader.seek(0, 3)
