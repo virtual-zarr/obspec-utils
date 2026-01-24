@@ -495,6 +495,28 @@ async def test_tracing_get_ranges_async_with_ends():
     assert all(r.range_style == "end" for r in trace.requests)
 
 
+@pytest.mark.asyncio
+async def test_tracing_get_range_async_missing_params():
+    """Raises ValueError when neither end nor length provided for async."""
+    mock_store = MockStore()
+    trace = RequestTrace()
+    traced = TracingReadableStore(mock_store, trace)
+
+    with pytest.raises(ValueError, match="Either 'end' or 'length' must be provided"):
+        await traced.get_range_async("test.txt", start=0)
+
+
+@pytest.mark.asyncio
+async def test_tracing_get_ranges_async_missing_params():
+    """Raises ValueError when neither ends nor lengths provided for async."""
+    mock_store = MockStore()
+    trace = RequestTrace()
+    traced = TracingReadableStore(mock_store, trace)
+
+    with pytest.raises(ValueError, match="Either 'ends' or 'lengths' must be provided"):
+        await traced.get_ranges_async("test.txt", starts=[0, 5])
+
+
 # --- TracingReadableStore - Callback & Forwarding ---
 
 
