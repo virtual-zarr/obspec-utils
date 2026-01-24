@@ -306,6 +306,19 @@ class BufferedStoreReader:
         """
         return self._position
 
+    def close(self) -> None:
+        """Close the reader and release the read-ahead buffer."""
+        self._buffer = b""
+        self._buffer_start = 0
+
+    def __enter__(self) -> "BufferedStoreReader":
+        """Enter the context manager."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit the context manager and close the reader."""
+        self.close()
+
 
 class EagerStoreReader:
     """
@@ -411,6 +424,18 @@ class EagerStoreReader:
     def tell(self) -> int:
         """Return the current position in the cached file."""
         return self._buffer.tell()
+
+    def close(self) -> None:
+        """Close the reader and release the in-memory buffer."""
+        self._buffer = io.BytesIO(b"")
+
+    def __enter__(self) -> "EagerStoreReader":
+        """Enter the context manager."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit the context manager and close the reader."""
+        self.close()
 
 
 class ParallelStoreReader:
@@ -603,6 +628,18 @@ class ParallelStoreReader:
             Current position in bytes from start of file.
         """
         return self._position
+
+    def close(self) -> None:
+        """Close the reader and release the chunk cache."""
+        self._cache.clear()
+
+    def __enter__(self) -> "ParallelStoreReader":
+        """Enter the context manager."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit the context manager and close the reader."""
+        self.close()
 
 
 __all__: list[str] = [
