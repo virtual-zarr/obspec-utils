@@ -51,6 +51,7 @@ test = [
     "mypy",
     "pytest-xdist",
     "minio",
+    "docker",
 ]
 xarray = [
   "xarray",

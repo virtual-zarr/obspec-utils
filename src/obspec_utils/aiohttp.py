@@ -216,12 +216,26 @@ class AiohttpStore(ReadableStore):
         path = path.removeprefix("/")
         return f"{self.base_url}/{path}" if path else self.base_url
 
+    def _get_header_case_insensitive(
+        self, headers: dict, name: str, default: str | None = None
+    ) -> str | None:
+        """Get a header value with case-insensitive name lookup."""
+        # Try exact match first
+        if name in headers:
+            return headers[name]
+        # Try case-insensitive lookup
+        name_lower = name.lower()
+        for key, value in headers.items():
+            if key.lower() == name_lower:
+                return value
+        return default
+
     def _parse_meta_from_headers(
         self, path: str, headers: dict, content_length: int | None = None
     ) -> ObjectMeta:
         """Extract ObjectMeta from HTTP response headers."""
         # Parse last-modified header
-        last_modified_str = headers.get("Last-Modified")
+        last_modified_str = self._get_header_case_insensitive(headers, "Last-Modified")
         if last_modified_str:
             # Parse HTTP date format
             try:
@@ -235,36 +249,41 @@ class AiohttpStore(ReadableStore):
 
         # Get size from Content-Length or Content-Range
         size = content_length or 0
-        content_range = headers.get("Content-Range")
+        content_range = self._get_header_case_insensitive(headers, "Content-Range")
         if content_range and "/" in content_range:
             # Format: bytes 0-999/1234
             total_str = content_range.split("/")[-1]
             if total_str != "*":
                 size = int(total_str)
-        elif "Content-Length" in headers:
-            size = int(headers["Content-Length"])
+        else:
+            content_length_str = self._get_header_case_insensitive(
+                headers, "Content-Length"
+            )
+            if content_length_str:
+                size = int(content_length_str)
 
         return {
             "path": path,
             "last_modified": last_modified,
             "size": size,
-            "e_tag": headers.get("ETag"),
+            "e_tag": self._get_header_case_insensitive(headers, "ETag"),
             "version": None,
         }
 
     def _parse_attributes_from_headers(self, headers: dict) -> Attributes:
         """Extract Attributes from HTTP response headers."""
         attrs: Attributes = {}
-        header_map = {
-            "Content-Disposition": "Content-Disposition",
-            "Content-Encoding": "Content-Encoding",
-            "Content-Language": "Content-Language",
-            "Content-Type": "Content-Type",
-            "Cache-Control": "Cache-Control",
-        }
-        for attr_name, header_name in header_map.items():
-            if header_name in headers:
-                attrs[attr_name] = headers[header_name]
+        header_names = [
+            "Content-Disposition",
+            "Content-Encoding",
+            "Content-Language",
+            "Content-Type",
+            "Cache-Control",
+        ]
+        for header_name in header_names:
+            value = self._get_header_case_insensitive(headers, header_name)
+            if value is not None:
+                attrs[header_name] = value
         return attrs
 
     # --- Async methods (primary implementation) ---
@@ -478,9 +497,7 @@ class AiohttpStore(ReadableStore):
         AiohttpGetResult
             Result object with buffer() method and metadata.
         """
-        result = asyncio.get_event_loop().run_until_complete(
-            self.get_async(path, options=options)
-        )
+        result = asyncio.run(self.get_async(path, options=options))
         return AiohttpGetResult(
             _data=result._data,
             _meta=result._meta,
@@ -517,7 +534,7 @@ class AiohttpStore(ReadableStore):
         bytes
             The requested byte range.
         """
-        return asyncio.get_event_loop().run_until_complete(
+        return asyncio.run(
             self.get_range_async(path, start=start, end=end, length=length)
         )
 
@@ -550,7 +567,7 @@ class AiohttpStore(ReadableStore):
         Sequence[bytes]
             The requested byte ranges.
         """
-        return asyncio.get_event_loop().run_until_complete(
+        return asyncio.run(
             self.get_ranges_async(path, starts=starts, ends=ends, lengths=lengths)
         )
 
