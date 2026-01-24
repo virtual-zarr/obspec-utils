@@ -497,9 +497,7 @@ class AiohttpStore(ReadableStore):
         AiohttpGetResult
             Result object with buffer() method and metadata.
         """
-        result = asyncio.get_event_loop().run_until_complete(
-            self.get_async(path, options=options)
-        )
+        result = asyncio.run(self.get_async(path, options=options))
         return AiohttpGetResult(
             _data=result._data,
             _meta=result._meta,
@@ -536,7 +534,7 @@ class AiohttpStore(ReadableStore):
         bytes
             The requested byte range.
         """
-        return asyncio.get_event_loop().run_until_complete(
+        return asyncio.run(
             self.get_range_async(path, start=start, end=end, length=length)
         )
 
@@ -569,7 +567,7 @@ class AiohttpStore(ReadableStore):
         Sequence[bytes]
             The requested byte ranges.
         """
-        return asyncio.get_event_loop().run_until_complete(
+        return asyncio.run(
             self.get_ranges_async(path, starts=starts, ends=ends, lengths=lengths)
         )
 
