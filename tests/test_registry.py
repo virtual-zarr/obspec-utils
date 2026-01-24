@@ -476,8 +476,8 @@ class _MockGetResultAsync:
         yield self._data
 
 
-def test_eager_reader_with_chunk_size_and_file_size():
-    """Test EagerStoreReader uses get_ranges when chunk_size and file_size provided."""
+def test_eager_reader_with_request_size_and_file_size():
+    """Test EagerStoreReader uses get_ranges when request_size and file_size provided."""
     from obspec_utils.tracing import TracingReadableStore, RequestTrace
 
     # Create test data (16 bytes)
@@ -488,9 +488,9 @@ def test_eager_reader_with_chunk_size_and_file_size():
     trace = RequestTrace()
     traced_store = TracingReadableStore(mock_store, trace)
 
-    # Create reader with chunk_size and file_size
+    # Create reader with request_size and file_size
     reader = EagerStoreReader(
-        traced_store, "test.txt", chunk_size=4, file_size=len(data)
+        traced_store, "test.txt", request_size=4, file_size=len(data)
     )
 
     # Verify the data is correct
@@ -498,12 +498,12 @@ def test_eager_reader_with_chunk_size_and_file_size():
 
     # Verify get_ranges was used (not get)
     summary = trace.summary()
-    assert summary["total_requests"] == 4  # 16 bytes / 4 byte chunks = 4 requests
+    assert summary["total_requests"] == 4  # 16 bytes / 4 byte requests = 4 requests
     assert all(r.method == "get_ranges" for r in trace.requests)
     assert summary["total_bytes"] == len(data)
 
 
-def test_eager_reader_with_chunk_size_uses_head():
+def test_eager_reader_uses_head():
     """Test EagerStoreReader uses head() to get file size when available."""
     from obspec_utils.tracing import TracingReadableStore, RequestTrace
 
@@ -515,16 +515,16 @@ def test_eager_reader_with_chunk_size_uses_head():
     trace = RequestTrace()
     traced_store = TracingReadableStore(mock_store, trace)
 
-    # Create reader with chunk_size but no file_size
+    # Create reader with request_size but no file_size
     # Store has head() method so it should be used
-    reader = EagerStoreReader(traced_store, "test.txt", chunk_size=4)
+    reader = EagerStoreReader(traced_store, "test.txt", request_size=4)
 
     # Verify the data is correct
     assert reader.read() == data
 
     # Verify get_ranges was used (head() call isn't traced, only data requests)
     summary = trace.summary()
-    assert summary["total_requests"] == 4  # 16 bytes / 4 byte chunks
+    assert summary["total_requests"] == 4  # 16 bytes / 4 byte requests
     assert all(r.method == "get_ranges" for r in trace.requests)
     assert summary["total_bytes"] == len(data)
 
@@ -541,9 +541,9 @@ def test_eager_reader_falls_back_to_single_get():
     trace = RequestTrace()
     traced_store = TracingReadableStore(mock_store, trace)
 
-    # Create reader with chunk_size but no file_size and no head()
+    # Create reader without file_size and no head()
     # Should fall back to single get() request
-    reader = EagerStoreReader(traced_store, "test.txt", chunk_size=4)
+    reader = EagerStoreReader(traced_store, "test.txt", request_size=4)
 
     # Verify the data is correct
     assert reader.read() == data
@@ -555,11 +555,11 @@ def test_eager_reader_falls_back_to_single_get():
     assert summary["total_bytes"] == len(data)
 
 
-def test_eager_reader_no_chunk_size():
-    """Test EagerStoreReader uses single get() when no chunk_size specified."""
+def test_eager_reader_small_file_uses_single_get():
+    """Test EagerStoreReader uses single get() when file fits in one request."""
     from obspec_utils.tracing import TracingReadableStore, RequestTrace
 
-    # Create test data
+    # Create test data smaller than default request_size (12 MB)
     data = b"0123456789ABCDEF"
     mock_store = MockReadableStoreWithHead(data)
 
@@ -567,13 +567,13 @@ def test_eager_reader_no_chunk_size():
     trace = RequestTrace()
     traced_store = TracingReadableStore(mock_store, trace)
 
-    # Create reader without chunk_size
+    # Create reader with default settings - file is smaller than request_size
     reader = EagerStoreReader(traced_store, "test.txt")
 
     # Verify the data is correct
     assert reader.read() == data
 
-    # Verify single get() was used
+    # Verify single get() was used (skips concurrency overhead)
     summary = trace.summary()
     assert summary["total_requests"] == 1
     assert trace.requests[0].method == "get"
@@ -591,8 +591,8 @@ def test_eager_reader_empty_file():
     trace = RequestTrace()
     traced_store = TracingReadableStore(mock_store, trace)
 
-    # Create reader with chunk_size and file_size=0
-    reader = EagerStoreReader(traced_store, "test.txt", chunk_size=4, file_size=0)
+    # Create reader with file_size=0
+    reader = EagerStoreReader(traced_store, "test.txt", request_size=4, file_size=0)
 
     # Verify the data is empty
     assert reader.read() == b""
@@ -601,11 +601,11 @@ def test_eager_reader_empty_file():
     assert trace.total_requests == 0
 
 
-def test_eager_reader_chunk_boundaries():
-    """Test EagerStoreReader handles non-aligned chunk boundaries."""
+def test_eager_reader_request_boundaries():
+    """Test EagerStoreReader handles non-aligned request boundaries."""
     from obspec_utils.tracing import TracingReadableStore, RequestTrace
 
-    # Create test data (10 bytes, not evenly divisible by chunk_size=4)
+    # Create test data (10 bytes, not evenly divisible by request_size=4)
     data = b"0123456789"
     mock_store = MockReadableStoreWithHead(data)
 
@@ -613,22 +613,82 @@ def test_eager_reader_chunk_boundaries():
     trace = RequestTrace()
     traced_store = TracingReadableStore(mock_store, trace)
 
-    # Create reader with chunk_size=4, file_size=10
+    # Create reader with request_size=4, file_size=10
     reader = EagerStoreReader(
-        traced_store, "test.txt", chunk_size=4, file_size=len(data)
+        traced_store, "test.txt", request_size=4, file_size=len(data)
     )
 
     # Verify the data is correct
     assert reader.read() == data
 
-    # Should be 3 chunks: 0-3 (4 bytes), 4-7 (4 bytes), 8-9 (2 bytes)
+    # Should be 3 requests: 0-3 (4 bytes), 4-7 (4 bytes), 8-9 (2 bytes)
     summary = trace.summary()
     assert summary["total_requests"] == 3
     assert summary["total_bytes"] == len(data)
 
-    # Verify chunk sizes
+    # Verify request sizes
     lengths = [r.length for r in trace.requests]
     assert lengths == [4, 4, 2]
+
+
+def test_eager_reader_max_concurrent_requests():
+    """Test EagerStoreReader caps requests at max_concurrent_requests."""
+    from obspec_utils.tracing import TracingReadableStore, RequestTrace
+
+    # Create test data (100 bytes)
+    data = b"x" * 100
+    mock_store = MockReadableStoreWithHead(data)
+
+    # Wrap with tracing
+    trace = RequestTrace()
+    traced_store = TracingReadableStore(mock_store, trace)
+
+    # With request_size=10, would need 10 requests
+    # But max_concurrent_requests=4, so should redistribute to 4 requests
+    reader = EagerStoreReader(
+        traced_store,
+        "test.txt",
+        request_size=10,
+        file_size=len(data),
+        max_concurrent_requests=4,
+    )
+
+    # Verify the data is correct
+    assert reader.read() == data
+
+    # Should be capped at 4 requests
+    summary = trace.summary()
+    assert summary["total_requests"] == 4
+    assert summary["total_bytes"] == len(data)
+
+
+def test_eager_reader_redistribution_even_split():
+    """Test EagerStoreReader redistributes evenly when capping requests."""
+    from obspec_utils.tracing import TracingReadableStore, RequestTrace
+
+    # Create test data (100 bytes)
+    data = b"x" * 100
+    mock_store = MockReadableStoreWithHead(data)
+
+    # Wrap with tracing
+    trace = RequestTrace()
+    traced_store = TracingReadableStore(mock_store, trace)
+
+    # With request_size=10, would need 10 requests
+    # With max_concurrent_requests=4, should get 4 requests of 25 bytes each
+    reader = EagerStoreReader(
+        traced_store,
+        "test.txt",
+        request_size=10,
+        file_size=len(data),
+        max_concurrent_requests=4,
+    )
+
+    assert reader.read() == data
+
+    # Verify redistributed request sizes (25, 25, 25, 25)
+    lengths = [r.length for r in trace.requests]
+    assert lengths == [25, 25, 25, 25]
 
 
 @pytest.mark.parametrize("ReaderClass", ALL_READERS)

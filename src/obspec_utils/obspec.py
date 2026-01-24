@@ -361,10 +361,14 @@ class EagerStoreReader:
     subsequent reads from the in-memory cache. Useful for files that will be
     read multiple times or when seeking is frequent.
 
-    When `chunk_size` is provided, the file is fetched using parallel chunked
-    requests via `get_ranges()`, which can significantly reduce load time for
-    large files by maximizing parallelism. If the store supports the `Head`
-    protocol, the file size will be determined automatically via a HEAD request.
+    By default, the file is fetched using parallel range requests via
+    `get_ranges()`, which can significantly improve load time for large files.
+    The defaults (12 MB request size, max 18 concurrent requests) are tuned for
+    cloud storage. If the store supports the `Head` protocol, the file size
+    will be determined automatically via a HEAD request.
+
+    The parallel fetching strategy is based on Icechunk's approach:
+    https://github.com/earth-mover/icechunk/blob/main/icechunk/src/storage/mod.rs
 
     Works with any ReadableStore protocol implementation.
 
@@ -377,8 +381,8 @@ class EagerStoreReader:
     - **Repeated random access**: After the initial load, any byte is accessible
       with no network latency.
     - **Small to medium files**: Files that fit comfortably in memory.
-    - **Parallel initial fetch**: With `chunk_size` set, the initial load uses
-      parallel requests for faster download.
+    - **Parallel initial fetch**: The default settings use parallel requests
+      for faster download on cloud storage.
 
     Consider alternatives when:
 
@@ -397,8 +401,9 @@ class EagerStoreReader:
         self,
         store: ReadableStore,
         path: str,
-        chunk_size: int | None = None,
+        request_size: int = 12 * 1024 * 1024,
         file_size: int | None = None,
+        max_concurrent_requests: int = 18,
     ) -> None:
         """
         Create an eager reader that loads the entire file into memory.
@@ -411,54 +416,62 @@ class EagerStoreReader:
             Any object implementing the [ReadableStore][obspec_utils.obspec.ReadableStore] protocol.
         path
             The path to the file within the store.
-        chunk_size
-            If provided, fetch the file using parallel requests of this size.
-            The file will be divided into chunks and fetched using `get_ranges()`.
-            If the store supports the `Head` protocol, the file size will be
-            determined automatically. Otherwise, `file_size` must be provided
-            for chunked fetching to work. If None (default), fetch with a single
-            `get()` request.
+        request_size
+            Target size for each parallel range request in bytes. Default is 12 MB,
+            tuned for cloud storage throughput. The file will be divided into
+            parts of this size and fetched using `get_ranges()`.
         file_size
-            File size in bytes. If not provided and `chunk_size` is set, the
-            reader will attempt to get the size via `store.head()` if the store
-            supports the `Head` protocol.
+            File size in bytes. If not provided, the reader will attempt to get
+            the size via `store.head()` if the store supports the `Head` protocol.
+            If the size cannot be determined, falls back to a single `get()` request.
+        max_concurrent_requests
+            Maximum number of parallel range requests. Default is 18. If the file
+            would require more requests than this, request sizes are increased to
+            fit within this limit.
         """
-        if chunk_size is None:
-            # Single request - fetch entire file
+        # Determine file size if not provided
+        if file_size is None:
+            if hasattr(store, "head") and callable(store.head):
+                file_size = store.head(path)["size"]
+            else:
+                # Fall back to single request if we can't determine size
+                result = store.get(path)
+                data = bytes(result.buffer())
+                self._buffer = io.BytesIO(data)
+                return
+
+        # Handle empty files
+        if file_size == 0:
+            self._buffer = io.BytesIO(b"")
+            return
+
+        # Calculate number of requests needed
+        num_requests = (file_size + request_size - 1) // request_size
+
+        # Cap at max_concurrent_requests by increasing request size
+        if num_requests > max_concurrent_requests:
+            num_requests = max_concurrent_requests
+            request_size = (file_size + num_requests - 1) // num_requests
+
+        # Skip concurrency overhead for single request
+        if num_requests == 1:
             result = store.get(path)
             data = bytes(result.buffer())
         else:
-            # Determine file size if not provided
-            if file_size is None:
-                if hasattr(store, "head") and callable(store.head):
-                    file_size = store.head(path)["size"]
-                else:
-                    # Fall back to single request if we can't determine size
-                    result = store.get(path)
-                    data = bytes(result.buffer())
-                    self._buffer = io.BytesIO(data)
-                    return
+            # Parallel range requests
+            starts = []
+            lengths = []
+            for i in range(num_requests):
+                start = i * request_size
+                length = min(request_size, file_size - start)
+                starts.append(start)
+                lengths.append(length)
 
-            # Parallel chunked requests
-            if file_size == 0:
-                data = b""
-            else:
-                # Calculate chunk boundaries
-                num_chunks = (file_size + chunk_size - 1) // chunk_size
+            # Fetch all parts in parallel
+            results = store.get_ranges(path, starts=starts, lengths=lengths)
 
-                starts = []
-                lengths = []
-                for i in range(num_chunks):
-                    start = i * chunk_size
-                    length = min(chunk_size, file_size - start)
-                    starts.append(start)
-                    lengths.append(length)
-
-                # Fetch all chunks in parallel
-                results = store.get_ranges(path, starts=starts, lengths=lengths)
-
-                # Concatenate chunks into single buffer
-                data = b"".join(bytes(chunk) for chunk in results)
+            # Concatenate into single buffer
+            data = b"".join(bytes(part) for part in results)
 
         self._buffer = io.BytesIO(data)
 
