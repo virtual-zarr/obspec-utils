@@ -315,6 +315,23 @@ async def test_get_async(minio_test_file):
 
 @requires_minio
 @pytest.mark.asyncio
+async def test_get_async_with_tuple_range_option(minio_test_file):
+    """Fetches byte range using options with tuple range."""
+    async with AiohttpStore(minio_test_file["base_url"]) as store:
+        # Use options={"range": (start, end)} to fetch bytes 0-4
+        result = await store.get_async(
+            minio_test_file["path"],
+            options={"range": (0, 5)},
+        )
+        data = await result.buffer_async()
+
+    assert data == b"01234"
+    # Verify the range is recorded correctly
+    assert result.range == (0, 5)
+
+
+@requires_minio
+@pytest.mark.asyncio
 async def test_get_range_async_with_end(minio_test_file):
     """Fetches byte range using end parameter."""
     async with AiohttpStore(minio_test_file["base_url"]) as store:
@@ -428,6 +445,79 @@ async def test_without_context_manager(minio_test_file):
 
     assert data == minio_test_file["content"]
     assert store._session is None  # No persistent session
+
+
+# --- Header Parsing (unit tests) ---
+
+
+def test_parse_meta_invalid_last_modified():
+    """Malformed Last-Modified header falls back to current time."""
+    from datetime import timezone
+
+    store = AiohttpStore("https://example.com")
+    before = datetime.now(timezone.utc)
+
+    # Provide an invalid Last-Modified header
+    meta = store._parse_meta_from_headers(
+        "test.txt",
+        {"Last-Modified": "not-a-valid-date"},
+        content_length=100,
+    )
+
+    after = datetime.now(timezone.utc)
+
+    # Should fall back to current time (approximately)
+    assert meta["last_modified"] is not None
+    assert isinstance(meta["last_modified"], datetime)
+    # The fallback time should be between before and after
+    assert before <= meta["last_modified"] <= after
+
+
+def test_parse_meta_missing_last_modified():
+    """Missing Last-Modified header falls back to current time."""
+    from datetime import timezone
+
+    store = AiohttpStore("https://example.com")
+    before = datetime.now(timezone.utc)
+
+    meta = store._parse_meta_from_headers(
+        "test.txt",
+        {},  # No Last-Modified header
+        content_length=100,
+    )
+
+    after = datetime.now(timezone.utc)
+
+    assert meta["last_modified"] is not None
+    assert before <= meta["last_modified"] <= after
+
+
+def test_parse_meta_content_range_with_total():
+    """Content-Range header with numeric total extracts file size."""
+    store = AiohttpStore("https://example.com")
+
+    meta = store._parse_meta_from_headers(
+        "test.txt",
+        {"Content-Range": "bytes 0-999/5000"},
+        content_length=1000,  # This is the chunk size, not total
+    )
+
+    # Size should be extracted from Content-Range total (5000), not content_length
+    assert meta["size"] == 5000
+
+
+def test_parse_meta_content_range_with_unknown_total():
+    """Content-Range header with '*' total does not override size."""
+    store = AiohttpStore("https://example.com")
+
+    meta = store._parse_meta_from_headers(
+        "test.txt",
+        {"Content-Range": "bytes 0-999/*"},
+        content_length=1000,
+    )
+
+    # Size should fall back to content_length since total is unknown
+    assert meta["size"] == 1000
 
 
 # --- Metadata from Real Server ---
