@@ -131,7 +131,21 @@ class SplittingReadableStore(ReadableStore):
         self._max_concurrent_requests = max_concurrent_requests
 
     def __getattr__(self, name: str) -> Any:
-        """Forward unknown attributes to the underlying store."""
+        """Forward unknown attributes to the underlying store.
+
+        This ensures SplittingReadableStore is transparent for any additional
+        public methods or attributes the underlying store may have.
+
+        Note: Private attributes (starting with '_') are not forwarded.
+        """
+        if name.startswith("_"):
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'"
+            )
+        if "_store" not in self.__dict__:
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'"
+            )
         return getattr(self._store, name)
 
     def _get_file_size(self, path: str) -> int | None:

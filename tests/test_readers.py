@@ -3,6 +3,7 @@ Common tests for all reader classes, parameterized across BufferedStoreReader,
 EagerStoreReader, and ParallelStoreReader.
 """
 
+import pickle
 from io import BytesIO
 
 import pytest
@@ -13,6 +14,8 @@ from obspec_utils.obspec import (
     EagerStoreReader,
     ParallelStoreReader,
 )
+
+from .mocks import PicklableStore
 
 
 ALL_READERS = [BufferedStoreReader, EagerStoreReader, ParallelStoreReader]
@@ -386,3 +389,86 @@ def test_reader_seek_invalid_whence_raises(ReaderClass):
 
     with pytest.raises(ValueError):
         reader.seek(0, 3)
+
+
+# =============================================================================
+# Pickling tests
+# =============================================================================
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_pickle_roundtrip(ReaderClass):
+    """Reader can be pickled and unpickled."""
+    store = PicklableStore()
+    store.put("test.txt", b"hello world")
+
+    reader = ReaderClass(store, "test.txt")
+
+    pickled = pickle.dumps(reader)
+    restored = pickle.loads(pickled)
+
+    assert isinstance(restored, ReaderClass)
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_pickle_preserves_path(ReaderClass):
+    """Unpickled reader preserves the file path."""
+    store = PicklableStore()
+    store.put("test.txt", b"hello world")
+
+    reader = ReaderClass(store, "test.txt")
+    restored = pickle.loads(pickle.dumps(reader))
+
+    assert restored._path == "test.txt"
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_pickle_restored_is_functional(ReaderClass):
+    """Restored reader can read data."""
+    store = PicklableStore()
+    store.put("test.txt", b"hello world")
+
+    reader = ReaderClass(store, "test.txt")
+    restored = pickle.loads(pickle.dumps(reader))
+
+    # Should be able to read data
+    assert restored.read(5) == b"hello"
+    assert restored.read(6) == b" world"
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_pickle_preserves_position(ReaderClass):
+    """Unpickled reader preserves the current position."""
+    store = PicklableStore()
+    store.put("test.txt", b"hello world")
+
+    reader = ReaderClass(store, "test.txt")
+    reader.read(5)  # Move position to 5
+    assert reader.tell() == 5
+
+    restored = pickle.loads(pickle.dumps(reader))
+
+    assert restored.tell() == 5
+    assert restored.read(6) == b" world"
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_pickle_multiple_protocols(ReaderClass):
+    """Pickling works with different pickle protocols.
+
+    Note: EagerStoreReader uses BytesIO which requires protocol >= 2.
+    """
+    store = PicklableStore()
+    store.put("test.txt", b"hello world")
+
+    reader = ReaderClass(store, "test.txt")
+
+    # BytesIO (used by EagerStoreReader) requires protocol >= 2
+    min_protocol = 2 if ReaderClass == EagerStoreReader else 0
+
+    for protocol in range(min_protocol, pickle.HIGHEST_PROTOCOL + 1):
+        pickled = pickle.dumps(reader, protocol=protocol)
+        restored = pickle.loads(pickled)
+
+        restored.seek(0)
+        assert restored.read() == b"hello world"

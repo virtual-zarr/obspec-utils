@@ -429,6 +429,9 @@ class EagerStoreReader:
             would require more requests than this, request sizes are increased to
             fit within this limit.
         """
+        self._store = store
+        self._path = path
+
         # Determine file size if not provided
         if file_size is None:
             if hasattr(store, "head") and callable(store.head):

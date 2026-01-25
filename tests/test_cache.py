@@ -10,6 +10,8 @@ from obstore.store import MemoryStore
 from obspec_utils.cache import CachingReadableStore
 from obspec_utils.registry import ObjectStoreRegistry
 
+from .mocks import PicklableStore
+
 
 class TestCachingReadableStore:
     """Tests for basic caching functionality."""
@@ -390,84 +392,6 @@ class TestAttributeForwarding:
         # This tests that __getattr__ forwards correctly
         assert hasattr(cached, "put")  # MemoryStore has put
         assert hasattr(cached, "delete")  # MemoryStore has delete
-
-
-class PicklableStore:
-    """A simple picklable store for testing pickle support.
-
-    MemoryStore from obstore is Rust-backed and not picklable.
-    This pure-Python store allows testing CachingReadableStore's pickle support.
-    """
-
-    def __init__(self, data: dict[str, bytes] | None = None):
-        self._data = data or {}
-
-    def put(self, path: str, data: bytes) -> None:
-        self._data[path] = data
-
-    def get(self, path: str, *, options=None):
-        return _PicklableGetResult(self._data[path])
-
-    async def get_async(self, path: str, *, options=None):
-        return _PicklableGetResultAsync(self._data[path])
-
-    def get_range(
-        self,
-        path: str,
-        *,
-        start: int,
-        end: int | None = None,
-        length: int | None = None,
-    ):
-        data = self._data[path]
-        if end is not None:
-            return data[start:end]
-        elif length is not None:
-            return data[start : start + length]
-        return data[start:]
-
-    async def get_range_async(
-        self,
-        path: str,
-        *,
-        start: int,
-        end: int | None = None,
-        length: int | None = None,
-    ):
-        return self.get_range(path, start=start, end=end, length=length)
-
-    def get_ranges(self, path: str, *, starts, ends=None, lengths=None):
-        if ends is not None:
-            return [self._data[path][s:e] for s, e in zip(starts, ends)]
-        elif lengths is not None:
-            return [
-                self._data[path][start : start + length]
-                for start, length in zip(starts, lengths)
-            ]
-        raise ValueError("Must provide ends or lengths")
-
-    async def get_ranges_async(self, path: str, *, starts, ends=None, lengths=None):
-        return self.get_ranges(path, starts=starts, ends=ends, lengths=lengths)
-
-
-class _PicklableGetResult:
-    """Mock GetResult for PicklableStore."""
-
-    def __init__(self, data: bytes):
-        self._data = data
-
-    def buffer(self):
-        return self._data
-
-
-class _PicklableGetResultAsync:
-    """Mock async GetResult for PicklableStore."""
-
-    def __init__(self, data: bytes):
-        self._data = data
-
-    async def buffer_async(self):
-        return self._data
 
 
 class TestPickling:
