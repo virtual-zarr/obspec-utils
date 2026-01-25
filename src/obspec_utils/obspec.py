@@ -177,7 +177,7 @@ class BufferedStoreReader:
 
     def __init__(
         self,
-        store: "BufferedStoreReader.Store",
+        store: BufferedStoreReader.Store,
         path: str,
         buffer_size: int = 1024 * 1024,
     ) -> None:
@@ -389,7 +389,7 @@ class EagerStoreReader:
 
     def __init__(
         self,
-        store: "EagerStoreReader.Store",
+        store: EagerStoreReader.Store,
         path: str,
         request_size: int = 12 * 1024 * 1024,
         file_size: int | None = None,
@@ -549,7 +549,7 @@ class ParallelStoreReader:
 
     def __init__(
         self,
-        store: "ParallelStoreReader.Store",
+        store: ParallelStoreReader.Store,
         path: str,
         chunk_size: int = 1024 * 1024,
         max_cached_chunks: int = 64,
