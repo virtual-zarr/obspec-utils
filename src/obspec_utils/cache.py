@@ -113,6 +113,20 @@ class CachingReadableStore(ReadableStore):
         """
         return getattr(self._store, name)
 
+    def __reduce__(self):
+        """Support pickling for multiprocessing and distributed frameworks.
+
+        Returns a fresh instance with an empty cache. This is intentional:
+        serializing the full cache contents would be inefficient for distributed
+        workloads where each worker typically processes different files.
+
+        The underlying store and max_size configuration are preserved.
+        """
+        return (
+            self.__class__,
+            (self._store, self._max_size),
+        )
+
     def _add_to_cache(self, path: str, data: bytes) -> None:
         """Add data to cache, evicting LRU entries if needed.
 

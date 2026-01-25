@@ -1,5 +1,6 @@
 """Tests for CachingReadableStore."""
 
+import pickle
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
@@ -389,3 +390,189 @@ class TestAttributeForwarding:
         # This tests that __getattr__ forwards correctly
         assert hasattr(cached, "put")  # MemoryStore has put
         assert hasattr(cached, "delete")  # MemoryStore has delete
+
+
+class PicklableStore:
+    """A simple picklable store for testing pickle support.
+
+    MemoryStore from obstore is Rust-backed and not picklable.
+    This pure-Python store allows testing CachingReadableStore's pickle support.
+    """
+
+    def __init__(self, data: dict[str, bytes] | None = None):
+        self._data = data or {}
+
+    def put(self, path: str, data: bytes) -> None:
+        self._data[path] = data
+
+    def get(self, path: str, *, options=None):
+        return _PicklableGetResult(self._data[path])
+
+    async def get_async(self, path: str, *, options=None):
+        return _PicklableGetResultAsync(self._data[path])
+
+    def get_range(
+        self,
+        path: str,
+        *,
+        start: int,
+        end: int | None = None,
+        length: int | None = None,
+    ):
+        data = self._data[path]
+        if end is not None:
+            return data[start:end]
+        elif length is not None:
+            return data[start : start + length]
+        return data[start:]
+
+    async def get_range_async(
+        self,
+        path: str,
+        *,
+        start: int,
+        end: int | None = None,
+        length: int | None = None,
+    ):
+        return self.get_range(path, start=start, end=end, length=length)
+
+    def get_ranges(self, path: str, *, starts, ends=None, lengths=None):
+        if ends is not None:
+            return [self._data[path][s:e] for s, e in zip(starts, ends)]
+        elif lengths is not None:
+            return [
+                self._data[path][start : start + length]
+                for start, length in zip(starts, lengths)
+            ]
+        raise ValueError("Must provide ends or lengths")
+
+    async def get_ranges_async(self, path: str, *, starts, ends=None, lengths=None):
+        return self.get_ranges(path, starts=starts, ends=ends, lengths=lengths)
+
+
+class _PicklableGetResult:
+    """Mock GetResult for PicklableStore."""
+
+    def __init__(self, data: bytes):
+        self._data = data
+
+    def buffer(self):
+        return self._data
+
+
+class _PicklableGetResultAsync:
+    """Mock async GetResult for PicklableStore."""
+
+    def __init__(self, data: bytes):
+        self._data = data
+
+    async def buffer_async(self):
+        return self._data
+
+
+class TestPickling:
+    """Tests for pickling support (needed for multiprocessing/distributed)."""
+
+    def test_pickle_roundtrip(self):
+        """CachingReadableStore can be pickled and unpickled."""
+        source = PicklableStore()
+        source.put("file.txt", b"hello world")
+
+        cached = CachingReadableStore(source, max_size=128 * 1024 * 1024)
+
+        # Pickle and unpickle
+        pickled = pickle.dumps(cached)
+        restored = pickle.loads(pickled)
+
+        assert isinstance(restored, CachingReadableStore)
+
+    def test_pickle_preserves_store_and_max_size(self):
+        """Unpickled store preserves underlying store and max_size."""
+        source = PicklableStore()
+        source.put("file.txt", b"hello world")
+
+        custom_max_size = 64 * 1024 * 1024
+        cached = CachingReadableStore(source, max_size=custom_max_size)
+
+        restored = pickle.loads(pickle.dumps(cached))
+
+        # max_size should be preserved
+        assert restored._max_size == custom_max_size
+
+        # underlying store should work (can fetch data)
+        result = restored.get("file.txt")
+        assert bytes(result.buffer()) == b"hello world"
+
+    def test_pickle_creates_empty_cache(self):
+        """Unpickled store has a fresh empty cache."""
+        source = PicklableStore()
+        source.put("file.txt", b"hello world")
+        source.put("file2.txt", b"more data")
+
+        cached = CachingReadableStore(source)
+
+        # Populate the cache
+        cached.get("file.txt")
+        cached.get("file2.txt")
+        assert cached.cache_size > 0
+        assert len(cached.cached_paths) == 2
+
+        # Pickle and unpickle
+        restored = pickle.loads(pickle.dumps(cached))
+
+        # Restored cache should be empty
+        assert restored.cache_size == 0
+        assert len(restored.cached_paths) == 0
+
+    def test_pickle_restored_store_is_functional(self):
+        """Restored store can cache new data normally."""
+        source = PicklableStore()
+        source.put("file.txt", b"hello world")
+
+        cached = CachingReadableStore(source, max_size=100)
+        cached.get("file.txt")
+
+        restored = pickle.loads(pickle.dumps(cached))
+
+        # Restored store should be able to fetch and cache
+        result = restored.get("file.txt")
+        assert bytes(result.buffer()) == b"hello world"
+        assert "file.txt" in restored.cached_paths
+        assert restored.cache_size == len(b"hello world")
+
+    def test_pickle_restored_store_lru_works(self):
+        """Restored store has working LRU eviction."""
+        source = PicklableStore()
+        source.put("file1.txt", b"a" * 100)
+        source.put("file2.txt", b"b" * 100)
+        source.put("file3.txt", b"c" * 100)
+
+        cached = CachingReadableStore(source, max_size=200)
+
+        restored = pickle.loads(pickle.dumps(cached))
+
+        # Cache two files
+        restored.get("file1.txt")
+        restored.get("file2.txt")
+        assert restored.cached_paths == ["file1.txt", "file2.txt"]
+
+        # Third file should evict first
+        restored.get("file3.txt")
+        assert restored.cached_paths == ["file2.txt", "file3.txt"]
+
+    def test_pickle_multiple_protocols(self):
+        """Pickling works with different pickle protocols."""
+        source = PicklableStore()
+        source.put("file.txt", b"hello world")
+
+        cached = CachingReadableStore(source)
+        cached.get("file.txt")
+
+        # Test all available protocols
+        for protocol in range(pickle.HIGHEST_PROTOCOL + 1):
+            pickled = pickle.dumps(cached, protocol=protocol)
+            restored = pickle.loads(pickled)
+
+            assert restored.cache_size == 0  # Fresh cache
+            result = restored.get("file.txt")
+            assert bytes(result.buffer()) == b"hello world"

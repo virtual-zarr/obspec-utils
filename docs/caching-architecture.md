@@ -235,6 +235,117 @@ For workloads requiring cross-worker cache sharing, consider:
 - Shared filesystem caching
 - Restructuring workloads to minimize cross-worker file access
 
+### Pickling and Serialization
+
+`CachingReadableStore` supports Python's pickle protocol for use with multiprocessing and distributed frameworks. When a `CachingReadableStore` is pickled and unpickled (e.g., sent to a worker process), it is **recreated with an empty cache**.
+
+```python
+import pickle
+from obspec_utils.cache import CachingReadableStore
+
+# Main process: create and populate cache
+cached_store = CachingReadableStore(store, max_size=256 * 1024 * 1024)
+cached_store.get("file1.nc")  # Cached
+cached_store.get("file2.nc")  # Cached
+print(cached_store.cache_size)  # Non-zero
+
+# Simulate sending to worker (pickle roundtrip)
+restored = pickle.loads(pickle.dumps(cached_store))
+
+# Worker receives store with empty cache
+print(restored.cache_size)  # 0
+print(restored._max_size)   # 256 * 1024 * 1024 (preserved)
+```
+
+**Design rationale:**
+
+1. **Cache contents are not serialized**: Serializing the full cache would defeat the purpose of distributed processing—workers would receive potentially huge payloads, and the data may not even be relevant to their partition.
+
+2. **Fresh cache per worker**: Each worker builds its own cache based on its workload. For file-partitioned workloads (common in data processing), this is optimal—each worker caches only the files it processes.
+
+3. **Configuration is preserved**: The `max_size` and underlying store are preserved, so workers use the same caching policy as the main process.
+
+**Requirements for pickling:**
+
+The underlying store (`_store`) must also be picklable. For cloud stores, this typically means using stores that can be reconstructed from configuration:
+
+```python
+# Works: store can be pickled (configuration-based)
+from obstore.store import S3Store
+s3_store = S3Store(bucket="my-bucket", region="us-east-1")
+cached = CachingReadableStore(s3_store)
+pickle.dumps(cached)  # OK
+
+# May not work: some Rust-backed stores aren't picklable
+from obstore.store import MemoryStore
+mem_store = MemoryStore()
+cached = CachingReadableStore(mem_store)
+pickle.dumps(cached)  # TypeError: cannot pickle 'MemoryStore' object
+```
+
+### Distributed Usage Patterns
+
+#### Pattern 1: File-Partitioned Workloads (Recommended)
+
+When each worker processes a distinct set of files, per-worker caching works well:
+
+```python
+from concurrent.futures import ProcessPoolExecutor
+from obspec_utils.cache import CachingReadableStore
+
+def process_files(cached_store, file_paths):
+    """Each worker gets its own cache, processes its own files."""
+    results = []
+    for path in file_paths:
+        # First access: fetch from network, cache locally
+        data = cached_store.get(path)
+        # Subsequent accesses to same file: served from cache
+        result = analyze(data)
+        results.append(result)
+    return results
+
+# Create cached store in main process
+store = S3Store(bucket="my-bucket")
+cached_store = CachingReadableStore(store, max_size=512 * 1024 * 1024)
+
+# Partition files across workers
+all_files = ["file1.nc", "file2.nc", "file3.nc", "file4.nc"]
+partitions = [all_files[:2], all_files[2:]]
+
+with ProcessPoolExecutor(max_workers=2) as executor:
+    futures = [
+        executor.submit(process_files, cached_store, partition)
+        for partition in partitions
+    ]
+    results = [f.result() for f in futures]
+```
+
+#### Pattern 2: Dask Distributed
+
+With Dask, the cached store is serialized to each worker:
+
+```python
+import dask
+from dask.distributed import Client
+from obspec_utils.cache import CachingReadableStore
+
+client = Client()
+
+store = S3Store(bucket="my-bucket")
+cached_store = CachingReadableStore(store)
+
+@dask.delayed
+def process_file(cached_store, path):
+    # Worker receives cached_store with empty cache
+    # Cache builds up as this worker processes files
+    data = cached_store.get(path)
+    return analyze(data)
+
+tasks = [process_file(cached_store, f) for f in file_list]
+results = dask.compute(*tasks)
+```
+
+
 ## Decision Guide
 
 ### Which reader should I use?
