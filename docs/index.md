@@ -81,7 +81,7 @@ data = await store.get_range_async(path, start=0, end=1000)
 
 ### File Handlers
 
-The file handlers provide file-like interfaces (read, seek, tell) for reading from object stores. They work with **any** [`ReadableStore`][obspec_utils.readers.ReadableStore] implementation:
+The file handlers provide file-like interfaces (read, seek, tell) for reading from object stores. They work with **any** [`ReadableStore`][obspec_utils.protocols.ReadableStore] implementation:
 
 ```python
 from obspec_utils.readers import BufferedStoreReader, EagerStoreReader, ParallelStoreReader
