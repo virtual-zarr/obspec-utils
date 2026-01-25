@@ -78,6 +78,9 @@ class MockReadableStore:
             "version": None,
         }
 
+    async def head_async(self, path):
+        return self.head(path)
+
     def get(self, path, *, options=None):
         return MockGetResult(self._data)
 

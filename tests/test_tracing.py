@@ -30,6 +30,12 @@ class FailingStore:
     async def get_ranges_async(self, path, *, starts, ends=None, lengths=None):
         raise IOError("Store error")
 
+    def head(self, path):
+        raise IOError("Store error")
+
+    async def head_async(self, path):
+        raise IOError("Store error")
+
 
 # --- RequestRecord Tests ---
 
@@ -456,15 +462,49 @@ def test_on_request_callback_for_get_ranges():
     assert len(callback_records) == 2
 
 
+def test_tracing_head():
+    """Records path, method='head', start=0, length=0."""
+    mock_store = MockStore(b"hello world")
+    trace = RequestTrace()
+    traced = TracingReadableStore(mock_store, trace)
+
+    result = traced.head("test.txt")
+    assert result["size"] == 11
+
+    assert len(trace.requests) == 1
+    record = trace.requests[0]
+    assert record.path == "test.txt"
+    assert record.method == "head"
+    assert record.start == 0
+    assert record.length == 0  # HEAD requests don't transfer data
+
+
+@pytest.mark.asyncio
+async def test_tracing_head_async():
+    """Records path, method='head', start=0, length=0 for async."""
+    mock_store = MockStore(b"hello world")
+    trace = RequestTrace()
+    traced = TracingReadableStore(mock_store, trace)
+
+    result = await traced.head_async("test.txt")
+    assert result["size"] == 11
+
+    assert len(trace.requests) == 1
+    record = trace.requests[0]
+    assert record.path == "test.txt"
+    assert record.method == "head"
+    assert record.start == 0
+    assert record.length == 0  # HEAD requests don't transfer data
+
+
 def test_getattr_forwards_to_store():
     """Unknown attributes forwarded to underlying store."""
     mock_store = MockStore(b"hello world")
     trace = RequestTrace()
     traced = TracingReadableStore(mock_store, trace)
 
-    # head() is defined on MockStore but not on TracingReadableStore
-    result = traced.head("test.txt")
-    assert result["size"] == 11
+    # Access a non-overridden attribute from the underlying store
+    assert traced._data == b"hello world"
 
 
 # --- TracingReadableStore - Timing & Error Handling ---
@@ -526,3 +566,36 @@ async def test_records_on_exception_async():
 
     assert len(trace.requests) == 1
     assert trace.requests[0].path == "test.txt"
+
+
+def test_records_head_on_exception():
+    """HEAD requests recorded even when store raises."""
+    failing_store = FailingStore()
+    trace = RequestTrace()
+    traced = TracingReadableStore(failing_store, trace)
+
+    with pytest.raises(IOError):
+        traced.head("test.txt")
+
+    assert len(trace.requests) == 1
+    record = trace.requests[0]
+    assert record.path == "test.txt"
+    assert record.method == "head"
+    assert record.duration is not None
+
+
+@pytest.mark.asyncio
+async def test_records_head_async_on_exception():
+    """HEAD async requests recorded even when store raises."""
+    failing_store = FailingStore()
+    trace = RequestTrace()
+    traced = TracingReadableStore(failing_store, trace)
+
+    with pytest.raises(IOError):
+        await traced.head_async("test.txt")
+
+    assert len(trace.requests) == 1
+    record = trace.requests[0]
+    assert record.path == "test.txt"
+    assert record.method == "head"
+    assert record.duration is not None
