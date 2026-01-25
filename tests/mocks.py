@@ -125,6 +125,9 @@ class PicklableStore:
     def head(self, path: str) -> dict:
         return {"size": len(self._data[path])}
 
+    async def head_async(self, path: str) -> dict:
+        return self.head(path)
+
     def get(self, path: str, *, options=None):
         return MockGetResult(self._data[path])
 

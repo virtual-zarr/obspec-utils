@@ -31,6 +31,38 @@ ALL_WRAPPER_FACTORIES = [
 
 
 # =============================================================================
+# head method tests
+# =============================================================================
+
+
+class TestStoreWrapperHead:
+    """Tests for head/head_async on all store wrappers."""
+
+    @pytest.mark.parametrize("make_wrapper", ALL_WRAPPER_FACTORIES)
+    def test_head_returns_metadata(self, make_wrapper):
+        """head() returns file metadata."""
+        store = PicklableStore()
+        store.put("file.txt", b"hello world")
+        wrapper = make_wrapper(store)
+
+        meta = wrapper.head("file.txt")
+
+        assert meta["size"] == 11
+
+    @pytest.mark.parametrize("make_wrapper", ALL_WRAPPER_FACTORIES)
+    @pytest.mark.asyncio
+    async def test_head_async_returns_metadata(self, make_wrapper):
+        """head_async() returns file metadata."""
+        store = PicklableStore()
+        store.put("file.txt", b"hello world")
+        wrapper = make_wrapper(store)
+
+        meta = await wrapper.head_async("file.txt")
+
+        assert meta["size"] == 11
+
+
+# =============================================================================
 # __getattr__ behavior tests
 # =============================================================================
 
