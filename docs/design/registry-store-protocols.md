@@ -1,10 +1,11 @@
-# Parser Protocol Requirements via ObjectStoreRegistry
+# Protocols and duck-typing when using obspec-utils
 
-**Question:** How should VirtualiZarr parsers designate which obspec protocols they require?
+This guide describes obspec-util's philosophy around protocols and duck-typing and provides recommendations
+for downstream users, such as [VirtualiZarr](https://virtualizarr.readthedocs.io/en/stable/index.html) parsers.
 
 ## obspec's Recommended Approach
 
-[obspec uses independent protocols](https://developmentseed.org/obspec/latest/blog/2025/06/25/introducing-obspec-a-python-protocol-for-interfacing-with-object-storage/) rather than a monolithic interface. The philosophy:
+[obspec uses independent protocols](https://developmentseed.org/obspec/latest/blog/2025/06/25/introducing-obspec-a-python-protocol-for-interfacing-with-object-storage/) rather than a monolithic interface. Obspec-utils adoption of that philosophy can be summarized as:
 
 - **Compose flat, independent protocols** for each use case
 - **Don't force unnecessary capabilities** — requiring fewer operations means more backend compatibility
@@ -33,16 +34,6 @@ class COGProtocol(GetRange, GetRangeAsync, GetRanges, GetRangesAsync, Head, Head
     """Parallel tile fetching."""
 ```
 
-## obspec Protocol Reference
-
-| Protocol | Methods | Use Case |
-|----------|---------|----------|
-| `Get` | `get()`, `get_async()` | Fetch entire objects |
-| `GetRange` | `get_range()`, `get_range_async()` | Fetch byte ranges |
-| `GetRanges` | `get_ranges()`, `get_ranges_async()` | Parallel byte ranges |
-| `Head` | `head()`, `head_async()` | Get size/metadata |
-| `List` | `list()`, `list_async()` | Enumerate objects |
-
 
 ## Why Not Protocol Tiers?
 
@@ -55,16 +46,6 @@ A tiered approach (`MinimalStore` → `ReadableStore` → `ListableStore`) creat
 | `ListableStore` requires all of `ReadableStore` | ZarrParser needs `List` + `Head`, not `GetRanges` |
 
 Flat composition avoids these issues — each protocol includes only what's actually needed.
-
-## Parser Requirements
-
-| Parser | Protocol Composition | Why |
-|--------|---------------------|-----|
-| Kerchunk-based | `Get`, `GetAsync` | All offsets pre-computed |
-| HDF5Parser | `GetRange`, `GetRangeAsync`, `Head`, `HeadAsync` | Random access, file size |
-| ZarrParser | `List`, `ListAsync`, `Head`, `HeadAsync` | Chunk discovery, size detection |
-
-Without validation, users get confusing errors like `AttributeError: 'HttpStore' object has no attribute 'list'`.
 
 ## obspec-utils Internal Design
 
@@ -96,7 +77,7 @@ class ReadableStore(Get, GetAsync, GetRange, GetRangeAsync, GetRanges, GetRanges
     """Full read interface for transparent store wrappers."""
 ```
 
-This is not exported — external consumers should compose their own protocols from obspec.
+External consumers should compose their own protocols from obspec.
 
 ## Generic Registry Design
 
@@ -146,6 +127,8 @@ class ZarrParser:
             )
         # ... proceed
 ```
+
+We also recommend using static type checkers.
 
 ## Escape Hatches
 
