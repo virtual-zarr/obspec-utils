@@ -2,8 +2,8 @@
 
 from obstore.store import MemoryStore
 
-from obspec_utils.obspec import ParallelStoreReader
-from obspec_utils.tracing import RequestTrace, TracingReadableStore
+from obspec_utils.readers import ParallelStoreReader
+from obspec_utils.wrappers import RequestTrace, TracingReadableStore
 
 
 def test_parallel_reader_cross_chunk_read():

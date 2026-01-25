@@ -1,1 +1,1 @@
-::: obspec_utils.splitting.SplittingReadableStore
+::: obspec_utils.wrappers.SplittingReadableStore

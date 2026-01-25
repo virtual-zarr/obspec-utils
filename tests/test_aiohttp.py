@@ -5,7 +5,7 @@ from datetime import datetime
 
 import pytest
 
-from obspec_utils.aiohttp import AiohttpGetResult, AiohttpGetResultAsync, AiohttpStore
+from obspec_utils.stores import AiohttpGetResult, AiohttpGetResultAsync, AiohttpStore
 
 # Check if docker is available for MinIO tests
 try:

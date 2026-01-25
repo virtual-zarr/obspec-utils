@@ -86,7 +86,7 @@ During data access:
 `EagerStoreReader` loads the entire file into memory on construction:
 
 ```python
-from obspec_utils.obspec import EagerStoreReader
+from obspec_utils.readers import EagerStoreReader
 
 # File is fully loaded into memory
 reader = EagerStoreReader(store, "file.nc")
@@ -118,7 +118,7 @@ reader.close()
 `ParallelStoreReader` uses chunk-based LRU caching:
 
 ```python
-from obspec_utils.obspec import ParallelStoreReader
+from obspec_utils.readers import ParallelStoreReader
 
 reader = ParallelStoreReader(
     store, "file.nc",
@@ -147,7 +147,7 @@ data = reader.read(1000)
 `BufferedStoreReader` provides read-ahead buffering for sequential access:
 
 ```python
-from obspec_utils.obspec import BufferedStoreReader
+from obspec_utils.readers import BufferedStoreReader
 
 reader = BufferedStoreReader(store, "file.nc", buffer_size=1024 * 1024)
 
@@ -173,7 +173,7 @@ while chunk := reader.read(4096):
 `CachingReadableStore` wraps any store to cache full objects:
 
 ```python
-from obspec_utils.cache import CachingReadableStore
+from obspec_utils.wrappers import CachingReadableStore
 
 # Wrap the store with caching
 cached_store = CachingReadableStore(
@@ -241,7 +241,7 @@ For workloads requiring cross-worker cache sharing, consider:
 
 ```python
 import pickle
-from obspec_utils.cache import CachingReadableStore
+from obspec_utils.wrappers import CachingReadableStore
 
 # Main process: create and populate cache
 cached_store = CachingReadableStore(store, max_size=256 * 1024 * 1024)
@@ -291,7 +291,7 @@ When each worker processes a distinct set of files, per-worker caching works wel
 
 ```python
 from concurrent.futures import ProcessPoolExecutor
-from obspec_utils.cache import CachingReadableStore
+from obspec_utils.wrappers import CachingReadableStore
 
 def process_files(cached_store, file_paths):
     """Each worker gets its own cache, processes its own files."""
@@ -327,7 +327,7 @@ With Dask, the cached store is serialized to each worker:
 ```python
 import dask
 from dask.distributed import Client
-from obspec_utils.cache import CachingReadableStore
+from obspec_utils.wrappers import CachingReadableStore
 
 client = Client()
 
@@ -375,7 +375,7 @@ results = dask.compute(*tasks)
 `SplittingReadableStore` accelerates `get()` by splitting large requests into parallel `get_ranges()`:
 
 ```python
-from obspec_utils.splitting import SplittingReadableStore
+from obspec_utils.wrappers import SplittingReadableStore
 
 fast_store = SplittingReadableStore(
     store,
@@ -387,8 +387,7 @@ fast_store = SplittingReadableStore(
 This extracts the parallel fetching logic from `EagerStoreReader` into a composable wrapper. It composes naturally with `CachingReadableStore`:
 
 ```python
-from obspec_utils.splitting import SplittingReadableStore
-from obspec_utils.cache import CachingReadableStore
+from obspec_utils.wrappers import CachingReadableStore, SplittingReadableStore
 
 # Compose: fast parallel fetches + caching
 store = S3Store(bucket="my-bucket")

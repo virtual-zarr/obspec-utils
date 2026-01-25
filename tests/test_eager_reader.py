@@ -1,7 +1,7 @@
 """Tests specific to EagerStoreReader."""
 
-from obspec_utils.obspec import EagerStoreReader
-from obspec_utils.tracing import TracingReadableStore, RequestTrace
+from obspec_utils.readers import EagerStoreReader
+from obspec_utils.wrappers import RequestTrace, TracingReadableStore
 
 from .mocks import MockReadableStore
 

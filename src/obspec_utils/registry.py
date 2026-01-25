@@ -118,9 +118,10 @@ class ObjectStoreRegistry(Generic[T]):
     protocol requirements by using a more specific type parameter.
 
     The registry can be used as an async context manager to automatically manage
-    the lifecycle of stores that support it (like AiohttpStore). Stores that don't
-    implement the async context manager protocol (like obstore's S3Store) are
-    unaffected.
+    the lifecycle of stores that support it (like
+    [AiohttpStore][obspec_utils.stores.AiohttpStore]). Stores that don't implement
+    the async context manager protocol (like obstore's [S3Store][obstore.store.S3Store])
+    are unaffected.
 
     Examples
     --------
@@ -348,9 +349,10 @@ class ObjectStoreRegistry(Generic[T]):
         """
         Enter the async context manager, opening all stores that support it.
 
-        Stores that implement the async context manager protocol (like AiohttpStore)
-        will have their sessions initialized. Stores that don't support it (like
-        obstore's S3Store) are unaffected.
+        Stores that implement the async context manager protocol (like
+        [AiohttpStore][obspec_utils.stores.AiohttpStore]) will have their
+        sessions initialized. Stores that don't support it (like
+        obstore's [S3Store][obstore.store.S3Store]) are unaffected.
 
         Examples
         --------

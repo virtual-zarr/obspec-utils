@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from obstore.store import MemoryStore
 
-from obspec_utils.cache import CachingReadableStore
+from obspec_utils.wrappers import CachingReadableStore
 from obspec_utils.registry import ObjectStoreRegistry
 
 from .mocks import PicklableStore
