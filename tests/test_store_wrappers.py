@@ -31,6 +31,72 @@ ALL_WRAPPER_FACTORIES = [
 
 
 # =============================================================================
+# __getattr__ behavior tests
+# =============================================================================
+
+
+class TestStoreWrapperGetattr:
+    """Tests for __getattr__ behavior on all store wrappers."""
+
+    @pytest.mark.parametrize("make_wrapper", ALL_WRAPPER_FACTORIES)
+    def test_getattr_forwards_public_attributes(self, make_wrapper):
+        """Public attributes are forwarded to the underlying store."""
+        store = PicklableStore()
+        store.put("file.txt", b"hello world")
+        wrapper = make_wrapper(store)
+
+        # PicklableStore has a 'head' method - should be accessible
+        assert hasattr(wrapper, "head")
+        assert callable(wrapper.head)
+
+    @pytest.mark.parametrize("make_wrapper", ALL_WRAPPER_FACTORIES)
+    def test_getattr_raises_for_private_attributes(self, make_wrapper):
+        """Private attributes (underscore-prefixed) raise AttributeError.
+
+        This prevents __getattr__ from forwarding _store lookups during
+        unpickling, which would cause infinite recursion.
+        """
+        store = PicklableStore()
+        store.put("file.txt", b"hello world")
+        wrapper = make_wrapper(store)
+
+        with pytest.raises(AttributeError, match="has no attribute '_nonexistent'"):
+            _ = wrapper._nonexistent
+
+        with pytest.raises(AttributeError, match="has no attribute '_private_attr'"):
+            _ = wrapper._private_attr
+
+    @pytest.mark.parametrize("make_wrapper", ALL_WRAPPER_FACTORIES)
+    def test_getattr_raises_for_nonexistent_public_attributes(self, make_wrapper):
+        """Non-existent public attributes raise AttributeError."""
+        store = PicklableStore()
+        store.put("file.txt", b"hello world")
+        wrapper = make_wrapper(store)
+
+        with pytest.raises(AttributeError):
+            _ = wrapper.nonexistent_method
+
+    @pytest.mark.parametrize(
+        "WrapperClass", [CachingReadableStore, SplittingReadableStore]
+    )
+    def test_getattr_raises_when_store_not_initialized(self, WrapperClass):
+        """AttributeError raised when _store not yet in __dict__.
+
+        This can happen during unpickling before __init__ runs.
+        We simulate this by creating an object without calling __init__.
+        """
+        # Create instance without calling __init__
+        wrapper = object.__new__(WrapperClass)
+
+        # Accessing any attribute should raise AttributeError, not recurse
+        with pytest.raises(AttributeError):
+            _ = wrapper.some_attribute
+
+        with pytest.raises(AttributeError):
+            _ = wrapper._private
+
+
+# =============================================================================
 # Pickling tests
 # =============================================================================
 
