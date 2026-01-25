@@ -148,15 +148,6 @@ class SplittingReadableStore(ReadableStore):
             )
         return getattr(self._store, name)
 
-    def _get_file_size(self, path: str) -> int:
-        """Get file size via head()."""
-        return self._store.head(path)["size"]
-
-    async def _get_file_size_async(self, path: str) -> int:
-        """Async version of _get_file_size."""
-        result = await self._store.head_async(path)
-        return result["size"]
-
     def _compute_ranges(self, file_size: int) -> tuple[list[int], list[int]] | None:
         """Compute start positions and lengths for parallel fetching.
 
@@ -205,7 +196,7 @@ class SplittingReadableStore(ReadableStore):
         If the file is large enough to benefit from splitting, fetches via
         parallel get_ranges(). Otherwise falls back to a single get() request.
         """
-        file_size = self._get_file_size(path)
+        file_size = self.head(path)["size"]
         ranges = self._compute_ranges(file_size)
 
         if ranges is not None:
@@ -221,7 +212,7 @@ class SplittingReadableStore(ReadableStore):
         self, path: str, *, options: GetOptions | None = None
     ) -> GetResultAsync:
         """Async get, using parallel fetching if beneficial."""
-        file_size = await self._get_file_size_async(path)
+        file_size = (await self.head_async(path))["size"]
         ranges = self._compute_ranges(file_size)
 
         if ranges is not None:
