@@ -5,7 +5,7 @@ for downstream users, such as [VirtualiZarr](https://virtualizarr.readthedocs.io
 
 ## obspec's Recommended Approach
 
-[obspec uses independent protocols](https://developmentseed.org/obspec/latest/blog/2025/06/25/introducing-obspec-a-python-protocol-for-interfacing-with-object-storage/) rather than a monolithic interface. Obspec-util's adoption of that philosophy can be summarized as:
+[obspec uses independent protocols](https://developmentseed.org/obspec/latest/blog/2025/06/25/introducing-obspec-a-python-protocol-for-interfacing-with-object-storage/#protocols-duck-typing-not-subclassing) rather than a monolithic interface. Obspec-util's adoption of that philosophy can be summarized as:
 
 - **Compose flat, independent protocols** for each use case
 - **Don't force unnecessary capabilities** — requiring fewer operations means more backend compatibility
@@ -15,7 +15,7 @@ The short summary for VirtualiZarr parsers is that we recommend each parser shou
 
 ```python
 from typing import Protocol
-from obspec import Get, GetAsync, GetRange, GetRangeAsync, Head, HeadAsync, List, ListAsync
+from obspec import Get, GetAsync, GetRange, GetRangeAsync, GetRanges, GetRangesAsync, Head, HeadAsync, List, ListAsync
 
 # Kerchunk - truly minimal
 class KerchunkProtocol(Get, GetAsync, Protocol):
@@ -269,7 +269,7 @@ This is self-documenting — the protocol is defined alongside the parser that r
 2. **Generic registry** with [Get][obspec.Get] bound
 3. **obspec-utils internal patterns:**
    - Readers use nested `Store` protocols (each with specific requirements)
-   - Wrappers share internal `ReadableStore` (not exported)
+   - Wrappers share internal `ReadableStore`
 4. **External consumers** (like VirtualiZarr) should compose protocols from obspec directly
 5. **Runtime validation** in parsers with clear error messages
 6. **Escape hatches** where feasible (`file_size`, `consolidated_metadata`)
