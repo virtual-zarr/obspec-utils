@@ -3,8 +3,7 @@
 import pytest
 from obstore.store import MemoryStore
 
-from obspec_utils.cache import CachingReadableStore
-from obspec_utils.splitting import SplittingReadableStore
+from obspec_utils.wrappers import CachingReadableStore, SplittingReadableStore
 
 
 class TestSplittingReadableStore:

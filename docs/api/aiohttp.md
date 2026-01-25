@@ -1,1 +1,1 @@
-::: obspec_utils.aiohttp.AiohttpStore
+::: obspec_utils.stores.AiohttpStore

@@ -1,6 +1,6 @@
 import pytest
 import xarray as xr
-from obspec_utils.obspec import (
+from obspec_utils.readers import (
     BufferedStoreReader,
     EagerStoreReader,
     ParallelStoreReader,

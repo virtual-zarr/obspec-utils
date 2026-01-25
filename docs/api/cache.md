@@ -1,1 +1,1 @@
-::: obspec_utils.cache.CachingReadableStore
+::: obspec_utils.wrappers.CachingReadableStore

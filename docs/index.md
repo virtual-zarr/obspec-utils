@@ -59,7 +59,7 @@ For generic HTTPS access where obstore's HTTPStore may not be ideal, you can use
 
 ```python
 from obspec_utils.registry import ObjectStoreRegistry
-from obspec_utils.aiohttp import AiohttpStore
+from obspec_utils.stores import AiohttpStore
 
 # Create an aiohttp-based store for a THREDDS server
 store = AiohttpStore(
@@ -80,7 +80,7 @@ data = await store.get_range_async(path, start=0, end=1000)
 The file handlers provide file-like interfaces (read, seek, tell) for reading from object stores. They work with **any** ReadableStore implementation:
 
 ```python
-from obspec_utils.obspec import BufferedStoreReader, EagerStoreReader, ParallelStoreReader
+from obspec_utils.readers import BufferedStoreReader, EagerStoreReader, ParallelStoreReader
 
 # Works with obstore
 from obstore.store import S3Store
@@ -88,7 +88,7 @@ store = S3Store(bucket="my-bucket")
 reader = BufferedStoreReader(store, "path/to/file.bin", buffer_size=1024*1024)
 
 # Also works with AiohttpStore or any ReadableStore
-from obspec_utils.aiohttp import AiohttpStore
+from obspec_utils.stores import AiohttpStore
 store = AiohttpStore("https://example.com/data")
 reader = BufferedStoreReader(store, "file.bin")
 

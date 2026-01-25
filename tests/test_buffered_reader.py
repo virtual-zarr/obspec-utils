@@ -5,8 +5,8 @@ from io import BytesIO
 import pytest
 from obstore.store import MemoryStore
 
-from obspec_utils.obspec import BufferedStoreReader
-from obspec_utils.tracing import TracingReadableStore, RequestTrace
+from obspec_utils.readers import BufferedStoreReader
+from obspec_utils.wrappers import RequestTrace, TracingReadableStore
 
 
 def test_buffered_reader_buffering():

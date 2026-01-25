@@ -8,8 +8,7 @@ import pickle
 
 import pytest
 
-from obspec_utils.cache import CachingReadableStore
-from obspec_utils.splitting import SplittingReadableStore
+from obspec_utils.wrappers import CachingReadableStore, SplittingReadableStore
 
 from .mocks import PicklableStore
 

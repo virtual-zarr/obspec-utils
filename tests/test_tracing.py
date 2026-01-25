@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from obspec_utils.tracing import RequestRecord, RequestTrace, TracingReadableStore
+from obspec_utils.wrappers import RequestRecord, RequestTrace, TracingReadableStore
 
 from .mocks import MockReadableStore as MockStore
 

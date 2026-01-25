@@ -9,7 +9,7 @@ from io import BytesIO
 import pytest
 from obstore.store import MemoryStore
 
-from obspec_utils.obspec import (
+from obspec_utils.readers import (
     BufferedStoreReader,
     EagerStoreReader,
     ParallelStoreReader,

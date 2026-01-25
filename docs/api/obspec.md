@@ -1,3 +1,5 @@
-::: obspec_utils.obspec.BufferedStoreReader
-::: obspec_utils.obspec.EagerStoreReader
-::: obspec_utils.obspec.ParallelStoreReader
+::: obspec_utils.protocols.ReadableStore
+::: obspec_utils.protocols.ReadableFile
+::: obspec_utils.readers.BufferedStoreReader
+::: obspec_utils.readers.EagerStoreReader
+::: obspec_utils.readers.ParallelStoreReader
