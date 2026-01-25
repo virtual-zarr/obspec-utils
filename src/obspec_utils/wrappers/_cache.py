@@ -23,7 +23,8 @@ if TYPE_CHECKING:
 
 class CachingReadableStore(ReadableStore):
     """
-    A wrapper that caches full objects in a MemoryStore on first access.
+    A wrapper that caches full objects in a [MemoryStore][obstore.store.MemoryStore]
+    on first access.
 
     This wrapper caches entire objects when they are first accessed.
     Subsequent accesses (including range requests) are served from the cache.
@@ -103,7 +104,7 @@ class CachingReadableStore(ReadableStore):
     def __getattr__(self, name: str) -> Any:
         """Forward unknown attributes to the underlying store.
 
-        This ensures CachingReadableStore is transparent for any additional
+        This ensures `CachingReadableStore` is transparent for any additional
         public methods or attributes the underlying store may have.
 
         Note: Private attributes (starting with '_') are not forwarded.

@@ -18,13 +18,16 @@ nav:
     - "Protocols": "design/protocols.md"
     - "Caching": "design/caching.md"
   - "API":
+      - Protocols: "api/protocols.md"
+      - Readers: "api/readers.md"
+      - Stores:
+          - AiohttpStore: "api/aiohttp.md"
+      - Wrappers:
+          - Caching: "api/cache.md"
+          - Splitting: "api/splitting.md"
+          - Tracing: "api/tracing.md"
+      - Registry: "api/registry.md"
       - Typing: "api/typing.md"
-      - Aiohttp Store Adapters: "api/aiohttp.md"
-      - Caching: "api/cache.md"
-      - Splitting: "api/splitting.md"
-      - Obspec File Readers: "api/obspec.md"
-      - Store Registries: "api/registry.md"
-      - Tracing: "api/tracing.md"
 
 watch:
   - src/obspec_utils

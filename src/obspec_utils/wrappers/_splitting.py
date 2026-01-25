@@ -21,13 +21,13 @@ if TYPE_CHECKING:
 
 class SplittingReadableStore(ReadableStore):
     """
-    Wraps a store to split large get() requests into parallel get_ranges().
+    Wraps a store to split large get() requests into parallel [get_ranges()][obspec.GetRanges].
 
     This accelerates fetching large files by dividing them into chunks and
-    fetching in parallel via get_ranges(). The splitting is transparent to
-    callers - they see a normal get() interface.
+    fetching in parallel via [get_ranges()][obspec.GetRanges]. The splitting is
+    transparent to callers - they see a normal get() interface.
 
-    Designed to compose with CachingReadableStore:
+    Designed to compose with [CachingReadableStore][obspec_utils.wrappers.CachingReadableStore]:
 
     ```python
     from obstore.store import S3Store
@@ -54,9 +54,9 @@ class SplittingReadableStore(ReadableStore):
 
     Notes
     -----
-    This wrapper only affects get() and get_async(). Range requests
-    (get_range, get_ranges) pass through unchanged since they're already
-    appropriately sized by the caller.
+    This wrapper only affects [get()][obspec.Get] and [get_async()][obspec.GetAsync].
+    Range requests ([get_range][obspec.GetRange], [get_ranges][obspec.GetRanges]) pass
+    through unchanged since they're already appropriately sized by the caller.
 
     The parallel fetching strategy is based on Icechunk's approach:
     https://github.com/earth-mover/icechunk/blob/main/icechunk/src/storage/mod.rs
@@ -193,7 +193,8 @@ class SplittingReadableStore(ReadableStore):
         """Get file, using parallel fetching if beneficial.
 
         If the file is large enough to benefit from splitting, fetches via
-        parallel get_ranges(). Otherwise falls back to a single get() request.
+        parallel [get_ranges()][obspec.GetRanges]. Otherwise falls back to a single
+        [get()][obspec.Get] request.
         """
         file_size = self.head(path)["size"]
         ranges = self._compute_ranges(file_size)

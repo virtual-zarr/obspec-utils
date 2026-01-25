@@ -12,7 +12,7 @@ class BufferedStoreReader:
     A file-like reader with buffered on-demand reads.
 
     This class provides a file-like interface (read, seek, tell) on top of any
-    object store. The reader uses `get_range()` calls to fetch data on-demand,
+    object store. The reader uses [`get_range()`][obspec.GetRange] calls to fetch data on-demand,
     with optional read-ahead buffering for efficiency.
 
     When to Use
@@ -35,8 +35,9 @@ class BufferedStoreReader:
 
     See Also
     --------
-    [EagerStoreReader][obspec_utils.readers.EagerStoreReader] : Loads entire file into memory for fast random access.
-    [ParallelStoreReader][obspec_utils.readers.ParallelStoreReader] : Uses parallel requests with LRU caching for sparse access.
+
+    - [EagerStoreReader][obspec_utils.readers.EagerStoreReader] : Loads entire file into memory for fast random access.
+    - [ParallelStoreReader][obspec_utils.readers.ParallelStoreReader] : Uses parallel requests with LRU caching for sparse access.
     """
 
     class Store(Get, GetRange, Head, Protocol):

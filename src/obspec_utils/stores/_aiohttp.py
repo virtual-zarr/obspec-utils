@@ -130,9 +130,9 @@ class AiohttpGetResultAsync(GetResultAsync):
 
 class AiohttpStore(ReadableStore):
     """
-    An aiohttp-based object store implementation.
+    An [aiohttp](https://docs.aiohttp.org/en/stable/)-based object store implementation.
 
-    This provides a lightweight alternative to obstore's HTTPStore for generic
+    This provides a lightweight alternative to obstore's [HTTPStore][obstore.store.HTTPStore] for generic
     HTTP/HTTPS access. It's particularly useful for:
 
     - THREDDS data servers

@@ -38,14 +38,14 @@ class ReadableStore(
     [SplittingReadableStore][obspec_utils.wrappers.SplittingReadableStore].
 
     The protocol includes:
+
     - [Get][obspec.Get] / [GetAsync][obspec.GetAsync]: Download entire files
     - [GetRange][obspec.GetRange] / [GetRangeAsync][obspec.GetRangeAsync]: Download byte ranges
     - [GetRanges][obspec.GetRanges] / [GetRangesAsync][obspec.GetRangesAsync]: Download multiple ranges
     - [Head][obspec.Head] / [HeadAsync][obspec.HeadAsync]: Get file metadata (size, etag, etc.)
 
-    Note: This is a flat composition of obspec protocols, not a hierarchical tier.
-    For parsers with specific requirements, compose your own protocols directly
-    from obspec (e.g., `class ZarrStore(List, Head, Protocol): ...`).
+    !!! Warning
+        It's recommended to define your own protocols. This protocol may change without warning.
     """
 
     pass
@@ -59,9 +59,13 @@ class ReadableFile(Protocol):
     This protocol defines the minimal interface needed to read from a file-like
     object, compatible with libraries that expect file handles (e.g., h5py, zarr).
 
-    The readers in this module (`BufferedStoreReader`, `EagerStoreReader`,
-    `ParallelStoreReader`) all implement this protocol, allowing them to be used
-    interchangeably wherever a `ReadableFile` is expected.
+    The `obspec_utils` readers ([`BufferedStoreReader`][obspec_utils.readers.BufferedStoreReader],
+    [`EagerStoreReader`][obspec_utils.readers.EagerStoreReader],
+    [`ParallelStoreReader`][obspec_utils.readers.EagerStoreReader]) all implement this protocol,
+    allowing them to be used interchangeably wherever a [`ReadableFile`][obspec_utils.protocols.ReadableFile] is expected.
+
+    !!! Warning
+        It's recommended to define your own protocols. This protocol may change without warning.
 
     Examples
     --------

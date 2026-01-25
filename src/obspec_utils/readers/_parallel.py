@@ -13,8 +13,8 @@ class ParallelStoreReader:
     """
     A file-like reader that uses parallel range requests for efficient chunk fetching.
 
-    This reader divides the file into fixed-size chunks and uses `get_ranges()` to
-    fetch multiple chunks in parallel. An LRU cache stores recently accessed chunks
+    This reader divides the file into fixed-size chunks and uses [`get_ranges()`][obspec.GetRanges]
+    to fetch multiple chunks in parallel. An LRU cache stores recently accessed chunks
     to avoid redundant fetches.
 
     This is particularly efficient for workloads that access multiple non-contiguous
@@ -41,8 +41,9 @@ class ParallelStoreReader:
 
     See Also
     --------
-    [BufferedStoreReader][obspec_utils.readers.BufferedStoreReader] : On-demand reads with read-ahead buffering.
-    [EagerStoreReader][obspec_utils.readers.EagerStoreReader] : Loads entire file into memory for fast random access.
+
+    - [BufferedStoreReader][obspec_utils.readers.BufferedStoreReader] : On-demand reads with read-ahead buffering.
+    - [EagerStoreReader][obspec_utils.readers.EagerStoreReader] : Loads entire file into memory for fast random access.
     """
 
     class Store(Get, GetRanges, Head, Protocol):

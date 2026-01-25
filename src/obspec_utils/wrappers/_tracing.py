@@ -155,7 +155,8 @@ class TracingReadableStore(ReadableStore):
     """
     A wrapper that traces all requests made to an underlying store.
 
-    This wrapper records all get/get_range/get_ranges calls for later analysis.
+    This wrapper records all [get][obspec.Get]/[get_range][obspec.GetRange]/[get_ranges][obspec.GetRanges]
+    calls for later analysis.
 
     Examples
     --------

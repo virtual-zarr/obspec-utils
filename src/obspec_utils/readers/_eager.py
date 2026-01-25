@@ -17,7 +17,7 @@ class EagerStoreReader:
     read multiple times or when seeking is frequent.
 
     By default, the file is fetched using parallel range requests via
-    `get_ranges()`, which can significantly improve load time for large files.
+    [`get_ranges()`][obspec.GetRanges], which can significantly improve load time for large files.
     The defaults (12 MB request size, max 18 concurrent requests) are tuned for
     cloud storage. The file size is determined automatically via a HEAD request.
 
@@ -45,8 +45,9 @@ class EagerStoreReader:
 
     See Also
     --------
-    [BufferedStoreReader][obspec_utils.readers.BufferedStoreReader] : On-demand reads with read-ahead buffering.
-    [ParallelStoreReader][obspec_utils.readers.ParallelStoreReader] : Uses parallel requests with LRU caching for sparse access.
+
+    - [BufferedStoreReader][obspec_utils.readers.BufferedStoreReader] : On-demand reads with read-ahead buffering.
+    - [ParallelStoreReader][obspec_utils.readers.ParallelStoreReader] : Uses parallel requests with LRU caching for sparse access.
     """
 
     class Store(Get, GetRanges, Head, Protocol):
@@ -82,7 +83,7 @@ class EagerStoreReader:
         request_size
             Target size for each parallel range request in bytes. Default is 12 MB,
             tuned for cloud storage throughput. The file will be divided into
-            parts of this size and fetched using `get_ranges()`.
+            parts of this size and fetched using [`get_ranges()`][obspec.GetRanges].
         file_size
             File size in bytes. If not provided, the size is determined via
             `store.head()`. Pass this to skip the HEAD request if you already
