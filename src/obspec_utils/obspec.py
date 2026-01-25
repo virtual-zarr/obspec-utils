@@ -607,15 +607,19 @@ class ParallelStoreReader:
             # Store in cache
             for chunk_idx, data in zip(needed, results):
                 self._cache[chunk_idx] = bytes(data)
-                # Move to end (most recently used)
-                self._cache.move_to_end(chunk_idx)
 
-                # Evict oldest if over capacity
-                while len(self._cache) > self._max_cached_chunks:
-                    self._cache.popitem(last=False)
+        # Mark all requested chunks as recently used
+        for i in chunk_indices:
+            self._cache.move_to_end(i)
 
-        # Return requested chunks from cache
-        return {i: self._cache[i] for i in chunk_indices}
+        # Build return dict before eviction
+        result = {i: self._cache[i] for i in chunk_indices}
+
+        # Evict oldest if over capacity
+        while len(self._cache) > self._max_cached_chunks:
+            self._cache.popitem(last=False)
+
+        return result
 
     def read(self, size: int = -1, /) -> bytes:
         """

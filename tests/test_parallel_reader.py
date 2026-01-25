@@ -41,3 +41,16 @@ def test_parallel_reader_caching():
     # First chunk refetched
     reader.seek(0)
     assert reader.read(4) == b"0123"
+
+
+def test_parallel_reader_read_spanning_more_chunks_than_cache():
+    """Read spanning more chunks than max_cached_chunks should succeed."""
+    memstore = MemoryStore()
+    # 20 bytes = 5 chunks of 4 bytes each
+    memstore.put("test.txt", b"0123456789ABCDEFGHIJ")
+
+    reader = ParallelStoreReader(
+        memstore, "test.txt", chunk_size=4, max_cached_chunks=2
+    )
+
+    assert reader.read(20) == b"0123456789ABCDEFGHIJ"
