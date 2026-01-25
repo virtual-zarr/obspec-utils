@@ -11,7 +11,7 @@ from obspec_utils.registry import (
     path_segments,
 )
 
-from .mocks import MockReadableStoreWithoutHead
+from .mocks import MockReadableStore
 
 
 # =============================================================================
@@ -124,7 +124,7 @@ def test_store_wrappers_compose():
 
 def test_registry_with_custom_readable_store():
     """Test that registry works with any ReadableStore protocol implementation."""
-    mock_store = MockReadableStoreWithoutHead(b"hello world")
+    mock_store = MockReadableStore(b"hello world")
     registry = ObjectStoreRegistry({"https://example.com": mock_store})
 
     store, path = registry.resolve("https://example.com/data/file.txt")

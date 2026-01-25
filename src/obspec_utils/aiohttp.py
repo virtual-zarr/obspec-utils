@@ -571,5 +571,61 @@ class AiohttpStore(ReadableStore):
             self.get_ranges_async(path, starts=starts, ends=ends, lengths=lengths)
         )
 
+    # --- Head methods ---
+
+    async def _do_head_async(
+        self,
+        session: aiohttp.ClientSession,
+        path: str,
+    ) -> ObjectMeta:
+        """Internal method that performs the actual HEAD request."""
+        url = self._build_url(path)
+        request_headers = {} if self._session else dict(self.headers)
+
+        async with session.head(url, headers=request_headers) as response:
+            response.raise_for_status()
+            return self._parse_meta_from_headers(path, dict(response.headers))
+
+    async def head_async(self, path: str) -> ObjectMeta:
+        """
+        Get file metadata asynchronously via HEAD request.
+
+        Parameters
+        ----------
+        path
+            Path to the file relative to base_url.
+
+        Returns
+        -------
+        ObjectMeta
+            File metadata including size, last_modified, e_tag, etc.
+        """
+        if self._session is not None:
+            return await self._do_head_async(self._session, path)
+
+        # Fallback: create a temporary session for this request
+        async with aiohttp.ClientSession(
+            timeout=self.timeout, headers=self.headers
+        ) as session:
+            return await self._do_head_async(session, path)
+
+    def head(self, path: str) -> ObjectMeta:
+        """
+        Get file metadata synchronously via HEAD request.
+
+        This wraps the async implementation for convenience.
+
+        Parameters
+        ----------
+        path
+            Path to the file relative to base_url.
+
+        Returns
+        -------
+        ObjectMeta
+            File metadata including size, last_modified, e_tag, etc.
+        """
+        return asyncio.run(self.head_async(path))
+
 
 __all__ = ["AiohttpStore", "AiohttpGetResult", "AiohttpGetResultAsync"]

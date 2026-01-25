@@ -6,7 +6,7 @@ import pytest
 
 from obspec_utils.tracing import RequestRecord, RequestTrace, TracingReadableStore
 
-from .mocks import MockReadableStoreWithHead as MockStore
+from .mocks import MockReadableStore as MockStore
 
 
 class FailingStore:
