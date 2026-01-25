@@ -550,7 +550,7 @@ class ParallelStoreReader:
         self,
         store: ReadableStore,
         path: str,
-        chunk_size: int = 256 * 1024,
+        chunk_size: int = 1024 * 1024,
         max_cached_chunks: int = 64,
     ) -> None:
         """
@@ -563,10 +563,12 @@ class ParallelStoreReader:
         path
             The path to the file within the store.
         chunk_size
-            Size of each chunk in bytes. Smaller chunks mean more granular caching
-            but potentially more requests.
+            Size of each chunk in bytes. Default is 1 MB, tuned for cloud object
+            stores where HTTP request overhead is significant. Smaller chunks mean
+            more granular caching but more requests.
         max_cached_chunks
-            Maximum number of chunks to keep in the LRU cache.
+            Maximum number of chunks to keep in the LRU cache. Default is 64,
+            giving a 64 MB cache with the default chunk size.
         """
         self._store = store
         self._path = path
