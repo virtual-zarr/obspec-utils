@@ -239,3 +239,91 @@ class TestSplittingReadableStorePickleConfig:
 
         restored = pickle.loads(pickle.dumps(wrapper))
         assert restored._max_concurrent_requests == 10
+
+
+# =============================================================================
+# Composed wrapper tests
+# =============================================================================
+
+
+class TestComposedWrapperPickling:
+    """Tests for pickling composed wrappers (e.g., caching wrapping splitting)."""
+
+    def test_pickle_splitting_then_caching(self):
+        """Composed SplittingReadableStore -> CachingReadableStore can be pickled."""
+        store = PicklableStore()
+        store.put("file.txt", b"hello world")
+
+        # Compose: source -> splitting -> caching (recommended pattern)
+        wrapper = SplittingReadableStore(store, request_size=1024)
+        wrapper = CachingReadableStore(wrapper, max_size=256 * 1024 * 1024)
+
+        restored = pickle.loads(pickle.dumps(wrapper))
+
+        # Verify outer wrapper type
+        assert type(restored) is CachingReadableStore
+
+        # Verify inner wrapper type
+        assert type(restored._store) is SplittingReadableStore
+
+        # Verify it's functional
+        result = restored.get("file.txt")
+        assert bytes(result.buffer()) == b"hello world"
+
+    def test_pickle_caching_then_splitting(self):
+        """Composed CachingReadableStore -> SplittingReadableStore can be pickled."""
+        store = PicklableStore()
+        store.put("file.txt", b"hello world")
+
+        # Compose: source -> caching -> splitting (less common but valid)
+        wrapper = CachingReadableStore(store, max_size=256 * 1024 * 1024)
+        wrapper = SplittingReadableStore(wrapper, request_size=1024)
+
+        restored = pickle.loads(pickle.dumps(wrapper))
+
+        # Verify outer wrapper type
+        assert type(restored) is SplittingReadableStore
+
+        # Verify inner wrapper type
+        assert type(restored._store) is CachingReadableStore
+
+        # Verify it's functional
+        result = restored.get("file.txt")
+        assert bytes(result.buffer()) == b"hello world"
+
+    def test_pickle_composed_preserves_all_config(self):
+        """Pickling composed wrappers preserves config at all levels."""
+        store = PicklableStore()
+        store.put("file.txt", b"hello world")
+
+        # Compose with custom config
+        splitting = SplittingReadableStore(
+            store, request_size=4 * 1024 * 1024, max_concurrent_requests=8
+        )
+        caching = CachingReadableStore(splitting, max_size=128 * 1024 * 1024)
+
+        restored = pickle.loads(pickle.dumps(caching))
+
+        # Verify outer (caching) config
+        assert restored._max_size == 128 * 1024 * 1024
+
+        # Verify inner (splitting) config
+        assert restored._store._request_size == 4 * 1024 * 1024
+        assert restored._store._max_concurrent_requests == 8
+
+    def test_pickle_composed_caching_has_empty_cache(self):
+        """Composed wrapper with caching has empty cache after unpickling."""
+        store = PicklableStore()
+        store.put("file.txt", b"hello world")
+
+        wrapper = SplittingReadableStore(store)
+        wrapper = CachingReadableStore(wrapper)
+
+        # Populate cache
+        wrapper.get("file.txt")
+        assert wrapper.cache_size > 0
+
+        restored = pickle.loads(pickle.dumps(wrapper))
+
+        # Cache should be empty after unpickling
+        assert restored.cache_size == 0
