@@ -596,3 +596,64 @@ async def test_attributes_content_type(minio_test_file):
 
     assert "Content-Type" in result.attributes
     assert result.attributes["Content-Type"] == "application/octet-stream"
+
+
+# --- AiohttpStore - Head Methods ---
+
+
+@requires_minio
+@pytest.mark.asyncio
+async def test_head_async(minio_test_file):
+    """head_async returns ObjectMeta with file size."""
+    async with AiohttpStore(minio_test_file["base_url"]) as store:
+        meta = await store.head_async(minio_test_file["path"])
+
+    assert meta["size"] == len(minio_test_file["content"])
+    assert meta["path"] == minio_test_file["path"]
+
+
+@requires_minio
+@pytest.mark.asyncio
+async def test_head_async_has_etag(minio_test_file):
+    """head_async returns ObjectMeta with ETag."""
+    async with AiohttpStore(minio_test_file["base_url"]) as store:
+        meta = await store.head_async(minio_test_file["path"])
+
+    # MinIO always returns an ETag
+    assert meta["e_tag"] is not None
+
+
+@requires_minio
+@pytest.mark.asyncio
+async def test_head_async_has_last_modified(minio_test_file):
+    """head_async returns ObjectMeta with last modified time."""
+    async with AiohttpStore(minio_test_file["base_url"]) as store:
+        meta = await store.head_async(minio_test_file["path"])
+
+    assert meta["last_modified"] is not None
+    assert isinstance(meta["last_modified"], datetime)
+
+
+@requires_minio
+@pytest.mark.asyncio
+async def test_head_async_without_context_manager(minio_test_file):
+    """head_async works without context manager (creates temp session)."""
+    store = AiohttpStore(minio_test_file["base_url"])
+    assert store._session is None
+
+    meta = await store.head_async(minio_test_file["path"])
+
+    assert meta["size"] == len(minio_test_file["content"])
+    assert store._session is None  # No persistent session
+
+
+@requires_minio
+def test_head_sync(minio_test_file):
+    """Synchronous head returns ObjectMeta."""
+    store = AiohttpStore(minio_test_file["base_url"])
+    meta = store.head(minio_test_file["path"])
+
+    assert meta["size"] == len(minio_test_file["content"])
+    assert meta["path"] == minio_test_file["path"]
+    assert meta["e_tag"] is not None
+    assert meta["last_modified"] is not None

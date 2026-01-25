@@ -11,12 +11,22 @@ from obspec import (
     GetRangeAsync,
     GetRanges,
     GetRangesAsync,
+    Head,
+    HeadAsync,
 )
 
 
 @runtime_checkable
 class ReadableStore(
-    Get, GetAsync, GetRange, GetRangeAsync, GetRanges, GetRangesAsync, Protocol
+    Get,
+    GetAsync,
+    GetRange,
+    GetRangeAsync,
+    GetRanges,
+    GetRangesAsync,
+    Head,
+    HeadAsync,
+    Protocol,
 ):
     """
     Full read interface for transparent store wrappers.
@@ -31,6 +41,7 @@ class ReadableStore(
     - [Get][obspec.Get] / [GetAsync][obspec.GetAsync]: Download entire files
     - [GetRange][obspec.GetRange] / [GetRangeAsync][obspec.GetRangeAsync]: Download byte ranges
     - [GetRanges][obspec.GetRanges] / [GetRangesAsync][obspec.GetRangesAsync]: Download multiple ranges
+    - [Head][obspec.Head] / [HeadAsync][obspec.HeadAsync]: Get file metadata (size, etag, etc.)
 
     Note: This is a flat composition of obspec protocols, not a hierarchical tier.
     For parsers with specific requirements, compose your own protocols directly
@@ -166,11 +177,12 @@ class BufferedStoreReader:
     [ParallelStoreReader][obspec_utils.obspec.ParallelStoreReader] : Uses parallel requests with LRU caching for sparse access.
     """
 
-    class Store(Get, GetRange, Protocol):
+    class Store(Get, GetRange, Head, Protocol):
         """
         Store protocol required by BufferedStoreReader.
 
-        Combines [Get][obspec.Get] and [GetRange][obspec.GetRange] from obspec.
+        Combines [Get][obspec.Get], [GetRange][obspec.GetRange], and
+        [Head][obspec.Head] from obspec.
         """
 
         pass
@@ -204,10 +216,9 @@ class BufferedStoreReader:
         self._buffer_start = 0
 
     def _get_size(self) -> int:
-        """Lazily fetch the file size via a get() call."""
+        """Lazily fetch the file size via a head() call."""
         if self._size is None:
-            result = self._store.get(self._path)
-            self._size = result.meta["size"]
+            self._size = self._store.head(self._path)["size"]
         return self._size
 
     def read(self, size: int = -1, /) -> bytes:
@@ -345,8 +356,7 @@ class EagerStoreReader:
     By default, the file is fetched using parallel range requests via
     `get_ranges()`, which can significantly improve load time for large files.
     The defaults (12 MB request size, max 18 concurrent requests) are tuned for
-    cloud storage. If the store supports the `Head` protocol, the file size
-    will be determined automatically via a HEAD request.
+    cloud storage. The file size is determined automatically via a HEAD request.
 
     The parallel fetching strategy is based on Icechunk's approach:
     https://github.com/earth-mover/icechunk/blob/main/icechunk/src/storage/mod.rs
@@ -376,13 +386,12 @@ class EagerStoreReader:
     [ParallelStoreReader][obspec_utils.obspec.ParallelStoreReader] : Uses parallel requests with LRU caching for sparse access.
     """
 
-    class Store(Get, GetRanges, Protocol):
+    class Store(Get, GetRanges, Head, Protocol):
         """
         Store protocol required by EagerStoreReader.
 
-        Combines [Get][obspec.Get] and [GetRanges][obspec.GetRanges] from obspec.
-        Optionally, the store may implement [Head][obspec.Head] for automatic
-        file size detection.
+        Combines [Get][obspec.Get], [GetRanges][obspec.GetRanges], and
+        [Head][obspec.Head] from obspec.
         """
 
         pass
@@ -403,8 +412,8 @@ class EagerStoreReader:
         Parameters
         ----------
         store
-            Any object implementing [Get][obspec.Get] and [GetRanges][obspec.GetRanges].
-            Optionally implements [Head][obspec.Head] for automatic file size detection.
+            Any object implementing [Get][obspec.Get], [GetRanges][obspec.GetRanges],
+            and [Head][obspec.Head].
         path
             The path to the file within the store.
         request_size
@@ -412,9 +421,9 @@ class EagerStoreReader:
             tuned for cloud storage throughput. The file will be divided into
             parts of this size and fetched using `get_ranges()`.
         file_size
-            File size in bytes. If not provided, the reader will attempt to get
-            the size via `store.head()` if the store supports [Head][obspec.Head].
-            If the size cannot be determined, falls back to a single `get()` request.
+            File size in bytes. If not provided, the size is determined via
+            `store.head()`. Pass this to skip the HEAD request if you already
+            know the file size.
         max_concurrent_requests
             Maximum number of parallel range requests. Default is 18. If the file
             would require more requests than this, request sizes are increased to
@@ -425,14 +434,7 @@ class EagerStoreReader:
 
         # Determine file size if not provided
         if file_size is None:
-            if hasattr(store, "head") and callable(store.head):
-                file_size = store.head(path)["size"]
-            else:
-                # Fall back to single request if we can't determine size
-                result = store.get(path)
-                data = bytes(result.buffer())
-                self._buffer = io.BytesIO(data)
-                return
+            file_size = store.head(path)["size"]
 
         # Handle empty files
         if file_size == 0:
@@ -538,11 +540,12 @@ class ParallelStoreReader:
     [EagerStoreReader][obspec_utils.obspec.EagerStoreReader] : Loads entire file into memory for fast random access.
     """
 
-    class Store(Get, GetRanges, Protocol):
+    class Store(Get, GetRanges, Head, Protocol):
         """
         Store protocol required by ParallelStoreReader.
 
-        Combines [Get][obspec.Get] and [GetRanges][obspec.GetRanges] from obspec.
+        Combines [Get][obspec.Get], [GetRanges][obspec.GetRanges], and
+        [Head][obspec.Head] from obspec.
         """
 
         pass
@@ -581,10 +584,9 @@ class ParallelStoreReader:
         self._cache: OrderedDict[int, bytes] = OrderedDict()
 
     def _get_size(self) -> int:
-        """Lazily fetch the file size via a get() call."""
+        """Lazily fetch the file size via a head() call."""
         if self._size is None:
-            result = self._store.get(self._path)
-            self._size = result.meta["size"]
+            self._size = self._store.head(self._path)["size"]
         return self._size
 
     def _get_chunks(self, chunk_indices: list[int]) -> dict[int, bytes]:

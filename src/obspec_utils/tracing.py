@@ -17,7 +17,7 @@ from obspec_utils.obspec import ReadableStore
 if TYPE_CHECKING:
     from collections.abc import Buffer
 
-    from obspec import GetOptions, GetResult, GetResultAsync
+    from obspec import GetOptions, GetResult, GetResultAsync, ObjectMeta
 
 
 class _TraceInfo(TypedDict, total=False):
@@ -47,7 +47,7 @@ class RequestRecord:
     end: int  # start + length
     timestamp: float
     duration: float | None = None
-    method: Literal["get", "get_range", "get_ranges"] = "get_range"
+    method: Literal["get", "get_range", "get_ranges", "head"] = "get_range"
     range_style: Literal["end", "length"] | None = None
 
 
@@ -64,7 +64,7 @@ class RequestTrace:
         length: int,
         timestamp: float,
         duration: float | None = None,
-        method: Literal["get", "get_range", "get_ranges"] = "get_range",
+        method: Literal["get", "get_range", "get_ranges", "head"] = "get_range",
         range_style: Literal["end", "length"] | None = None,
     ) -> None:
         """Add a request record."""
@@ -195,7 +195,8 @@ class TracingReadableStore(ReadableStore):
             Any object implementing the full read interface: [Get][obspec.Get],
             [GetAsync][obspec.GetAsync], [GetRange][obspec.GetRange],
             [GetRangeAsync][obspec.GetRangeAsync], [GetRanges][obspec.GetRanges],
-            and [GetRangesAsync][obspec.GetRangesAsync].
+            [GetRangesAsync][obspec.GetRangesAsync], [Head][obspec.Head],
+            and [HeadAsync][obspec.HeadAsync].
         trace
             RequestTrace instance to record requests to.
         on_request
@@ -217,7 +218,7 @@ class TracingReadableStore(ReadableStore):
     def _record(
         self,
         path: str,
-        method: Literal["get", "get_range", "get_ranges"],
+        method: Literal["get", "get_range", "get_ranges", "head"],
     ) -> Generator[_TraceInfo, None, None]:
         """Context manager to record a request with automatic timing.
 
@@ -382,6 +383,22 @@ class TracingReadableStore(ReadableStore):
         else:
             raise ValueError("Either 'ends' or 'lengths' must be provided")
         return results
+
+    def head(self, path: str) -> ObjectMeta:
+        """Get file metadata (delegates to underlying store)."""
+        with self._record(path, "head") as info:
+            result = self._store.head(path)
+            info["start"] = 0
+            info["length"] = 0  # HEAD requests don't transfer data
+            return result
+
+    async def head_async(self, path: str) -> ObjectMeta:
+        """Get file metadata async (delegates to underlying store)."""
+        with self._record(path, "head") as info:
+            result = await self._store.head_async(path)
+            info["start"] = 0
+            info["length"] = 0  # HEAD requests don't transfer data
+            return result
 
 
 __all__ = [

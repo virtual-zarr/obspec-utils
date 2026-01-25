@@ -16,7 +16,7 @@ from obspec_utils.obspec import ReadableStore
 if TYPE_CHECKING:
     from collections.abc import Buffer
 
-    from obspec import GetOptions, GetResult, GetResultAsync
+    from obspec import GetOptions, GetResult, GetResultAsync, ObjectMeta
 
 
 class SplittingReadableStore(ReadableStore):
@@ -61,10 +61,6 @@ class SplittingReadableStore(ReadableStore):
 
     The parallel fetching strategy is based on Icechunk's approach:
     https://github.com/earth-mover/icechunk/blob/main/icechunk/src/storage/mod.rs
-
-    **File size detection**: The wrapper attempts to determine file size via
-    head() if the store supports it. If not available, it falls back to a
-    single get() request (no splitting).
 
     Examples
     --------
@@ -123,7 +119,8 @@ class SplittingReadableStore(ReadableStore):
             Any object implementing the full read interface: [Get][obspec.Get],
             [GetAsync][obspec.GetAsync], [GetRange][obspec.GetRange],
             [GetRangeAsync][obspec.GetRangeAsync], [GetRanges][obspec.GetRanges],
-            and [GetRangesAsync][obspec.GetRangesAsync].
+            [GetRangesAsync][obspec.GetRangesAsync], [Head][obspec.Head],
+            and [HeadAsync][obspec.HeadAsync].
         request_size
             Target size for each parallel range request. Default: 12 MB.
         max_concurrent_requests
@@ -150,26 +147,6 @@ class SplittingReadableStore(ReadableStore):
                 f"'{type(self).__name__}' object has no attribute '{name}'"
             )
         return getattr(self._store, name)
-
-    def _get_file_size(self, path: str) -> int | None:
-        """Try to get file size via head(), return None if not available."""
-        if hasattr(self._store, "head") and callable(self._store.head):
-            try:
-                return self._store.head(path)["size"]
-            except Exception:
-                return None
-        return None
-
-    async def _get_file_size_async(self, path: str) -> int | None:
-        """Async version of _get_file_size."""
-        if hasattr(self._store, "head_async") and callable(self._store.head_async):
-            try:
-                result = await self._store.head_async(path)
-                return result["size"]
-            except Exception:
-                return None
-        # Fall back to sync head if available
-        return self._get_file_size(path)
 
     def _compute_ranges(self, file_size: int) -> tuple[list[int], list[int]] | None:
         """Compute start positions and lengths for parallel fetching.
@@ -216,40 +193,37 @@ class SplittingReadableStore(ReadableStore):
     def get(self, path: str, *, options: GetOptions | None = None) -> GetResult:
         """Get file, using parallel fetching if beneficial.
 
-        If the file size can be determined and the file is large enough to
-        benefit from splitting, fetches via parallel get_ranges(). Otherwise
-        falls back to a single get() request.
+        If the file is large enough to benefit from splitting, fetches via
+        parallel get_ranges(). Otherwise falls back to a single get() request.
         """
-        file_size = self._get_file_size(path)
+        file_size = self.head(path)["size"]
+        ranges = self._compute_ranges(file_size)
 
-        if file_size is not None:
-            ranges = self._compute_ranges(file_size)
-            if ranges is not None:
-                starts, lengths = ranges
-                results = self._store.get_ranges(path, starts=starts, lengths=lengths)
-                data = b"".join(bytes(part) for part in results)
-                return self._wrap_as_get_result(path, data)
+        if ranges is not None:
+            starts, lengths = ranges
+            results = self._store.get_ranges(path, starts=starts, lengths=lengths)
+            data = b"".join(bytes(part) for part in results)
+            return self._wrap_as_get_result(path, data)
 
-        # Fall back to regular get
+        # Fall back to regular get (file too small for splitting)
         return self._store.get(path, options=options)
 
     async def get_async(
         self, path: str, *, options: GetOptions | None = None
     ) -> GetResultAsync:
         """Async get, using parallel fetching if beneficial."""
-        file_size = await self._get_file_size_async(path)
+        file_size = (await self.head_async(path))["size"]
+        ranges = self._compute_ranges(file_size)
 
-        if file_size is not None:
-            ranges = self._compute_ranges(file_size)
-            if ranges is not None:
-                starts, lengths = ranges
-                results = await self._store.get_ranges_async(
-                    path, starts=starts, lengths=lengths
-                )
-                data = b"".join(bytes(part) for part in results)
-                return await self._wrap_as_get_result_async(path, data)
+        if ranges is not None:
+            starts, lengths = ranges
+            results = await self._store.get_ranges_async(
+                path, starts=starts, lengths=lengths
+            )
+            data = b"".join(bytes(part) for part in results)
+            return await self._wrap_as_get_result_async(path, data)
 
-        # Fall back to regular get_async
+        # Fall back to regular get_async (file too small for splitting)
         return await self._store.get_async(path, options=options)
 
     # Pass through range methods unchanged - caller already sized appropriately
@@ -301,6 +275,14 @@ class SplittingReadableStore(ReadableStore):
         return await self._store.get_ranges_async(
             path, starts=starts, ends=ends, lengths=lengths
         )
+
+    def head(self, path: str) -> ObjectMeta:
+        """Get file metadata (delegates to underlying store)."""
+        return self._store.head(path)
+
+    async def head_async(self, path: str) -> ObjectMeta:
+        """Get file metadata async (delegates to underlying store)."""
+        return await self._store.head_async(path)
 
 
 __all__ = ["SplittingReadableStore"]

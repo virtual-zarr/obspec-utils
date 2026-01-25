@@ -18,7 +18,7 @@ from obspec_utils.obspec import ReadableStore
 if TYPE_CHECKING:
     from collections.abc import Buffer
 
-    from obspec import GetOptions, GetResult, GetResultAsync
+    from obspec import GetOptions, GetResult, GetResultAsync, ObjectMeta
 
 
 class CachingReadableStore(ReadableStore):
@@ -88,7 +88,8 @@ class CachingReadableStore(ReadableStore):
             Any object implementing the full read interface: [Get][obspec.Get],
             [GetAsync][obspec.GetAsync], [GetRange][obspec.GetRange],
             [GetRangeAsync][obspec.GetRangeAsync], [GetRanges][obspec.GetRanges],
-            and [GetRangesAsync][obspec.GetRangesAsync].
+            [GetRangesAsync][obspec.GetRangesAsync], [Head][obspec.Head],
+            and [HeadAsync][obspec.HeadAsync].
         max_size
             Maximum cache size in bytes. Default: 256 MB.
         """
@@ -280,6 +281,14 @@ class CachingReadableStore(ReadableStore):
         return await self._cache.get_ranges_async(
             path, starts=starts, ends=ends, lengths=lengths
         )
+
+    def head(self, path: str) -> ObjectMeta:
+        """Get file metadata (delegates to underlying store)."""
+        return self._store.head(path)
+
+    async def head_async(self, path: str) -> ObjectMeta:
+        """Get file metadata async (delegates to underlying store)."""
+        return await self._store.head_async(path)
 
 
 __all__ = ["CachingReadableStore"]
