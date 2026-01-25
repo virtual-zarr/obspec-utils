@@ -1,10 +1,9 @@
-import xarray as xr
-
 import json
 import time
+from pathlib import Path
 
 import pytest
-from pathlib import Path
+import xarray as xr
 
 
 @pytest.fixture(scope="session")
