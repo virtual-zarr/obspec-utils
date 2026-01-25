@@ -5,13 +5,13 @@ for downstream users, such as [VirtualiZarr](https://virtualizarr.readthedocs.io
 
 ## obspec's Recommended Approach
 
-[obspec uses independent protocols](https://developmentseed.org/obspec/latest/blog/2025/06/25/introducing-obspec-a-python-protocol-for-interfacing-with-object-storage/) rather than a monolithic interface. Obspec-utils adoption of that philosophy can be summarized as:
+[obspec uses independent protocols](https://developmentseed.org/obspec/latest/blog/2025/06/25/introducing-obspec-a-python-protocol-for-interfacing-with-object-storage/) rather than a monolithic interface. Obspec-util's adoption of that philosophy can be summarized as:
 
 - **Compose flat, independent protocols** for each use case
 - **Don't force unnecessary capabilities** — requiring fewer operations means more backend compatibility
 - **Avoid hierarchical tiers** — they create artificial coupling between unrelated capabilities
 
-Each parser should define exactly the protocols it needs:
+The short summary for VirtualiZarr parsers is that we recommend each parser should define exactly the protocols it needs:
 
 ```python
 from typing import Protocol
@@ -33,19 +33,6 @@ class ZarrProtocol(List, ListAsync, Head, HeadAsync, Protocol):
 class COGProtocol(GetRange, GetRangeAsync, GetRanges, GetRangesAsync, Head, HeadAsync, Protocol):
     """Parallel tile fetching."""
 ```
-
-
-## Why Not Protocol Tiers?
-
-A tiered approach (`MinimalStore` → `ReadableStore` → `ListableStore`) creates artificial coupling:
-
-| Tier approach | Problem |
-|---------------|---------|
-| `ReadableStore` bundles `GetRange` + `GetRanges` + `Head` | Some range readers don't need `Head` (size passed explicitly) |
-| `ReadableStore` requires `GetRanges` | Some backends only support single `GetRange` |
-| `ListableStore` requires all of `ReadableStore` | ZarrParser needs `List` + `Head`, not `GetRanges` |
-
-Flat composition avoids these issues — each protocol includes only what's actually needed.
 
 ## obspec-utils Internal Design
 
@@ -79,7 +66,7 @@ class ReadableStore(Get, GetAsync, GetRange, GetRangeAsync, GetRanges, GetRanges
 
 External consumers should compose their own protocols from obspec.
 
-## Generic Registry Design
+### Generic Registry Design
 
 The registry is generic with [Get][obspec.Get] as the bound, allowing callers to specify their exact protocol requirements:
 
@@ -112,7 +99,21 @@ registry: ObjectStoreRegistry[Get] = ObjectStoreRegistry({
 })
 ```
 
-## Runtime Validation
+### Why Not Protocol Tiers?
+
+A tiered approach (`MinimalStore` → `ReadableStore` → `ListableStore`) creates artificial coupling:
+
+| Tier approach | Problem |
+|---------------|---------|
+| `ReadableStore` bundles `GetRange` + `GetRanges` + `Head` | Some range readers don't need `Head` (size passed explicitly) |
+| `ReadableStore` requires `GetRanges` | Some backends only support single `GetRange` |
+| `ListableStore` requires all of `ReadableStore` | ZarrParser needs `List` + `Head`, not `GetRanges` |
+
+Flat composition avoids these issues — each protocol includes only what's actually needed.
+
+## Options for downstream users
+
+### Runtime Validation
 
 Since Protocol `isinstance()` checks are unreliable, parsers should validate at call time:
 
@@ -130,7 +131,7 @@ class ZarrParser:
 
 We also recommend using static type checkers.
 
-## Escape Hatches
+### Escape Hatches
 
 Provide parameters to reduce requirements where desired:
 
@@ -144,7 +145,7 @@ class HDF5Parser:
         self.file_size = file_size  # Skip Head requirement
 ```
 
-## Backwards Compatibility
+### Backwards Compatibility
 
 **Can VirtualiZarr depend on obspec-utils without parser changes?**
 
@@ -155,17 +156,17 @@ At runtime, `resolve()` returns the actual store object (e.g., `S3Store`), which
 | Runtime | Stores have all methods | No |
 | Static typing | Type checkers see declared protocol | Depends on approach |
 
-### Migration Path
+#### Migration Path
 
 1. **Immediate:** Duck typing — no changes, works at runtime, type checkers complain
 2. **Incremental:** Type-ignore pragmas — `store.list(path)  # type: ignore[attr-defined]`
 3. **Full type safety:** Generic registry with parser-specific protocols
 
-## VirtualiZarr Implementation Guide
+### VirtualiZarr Implementation Guide
 
 VirtualiZarr parsers should define their protocol requirements in VirtualiZarr, not in obspec-utils. This keeps obspec-utils minimal and lets VirtualiZarr evolve its requirements independently.
 
-### Defining Parser Protocols
+#### Defining Parser Protocols
 
 In `virtualizarr/parsers/protocols.py`:
 
@@ -186,7 +187,7 @@ class ZarrStore(List, ListAsync, Head, HeadAsync, Protocol):
     pass
 ```
 
-### Using Protocols in Parsers
+#### Using Protocols in Parsers
 
 Each parser uses its protocol for type hints and validates at runtime:
 
@@ -226,7 +227,7 @@ class ZarrParser:
         # ...
 ```
 
-### Creating Typed Registries
+#### Creating Typed Registries
 
 Users create registries with the appropriate protocol for their workflow:
 
@@ -242,7 +243,7 @@ registry: ObjectStoreRegistry[ZarrStore] = ObjectStoreRegistry({
 # and that resolved stores have list() and head() methods
 ```
 
-### Nested Store Protocol Pattern
+#### Nested Store Protocol Pattern
 
 Following obspec-utils' reader pattern, parsers can define their protocol as a nested class:
 
