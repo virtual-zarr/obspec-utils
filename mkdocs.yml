@@ -15,8 +15,8 @@ extra:
 nav:
   - "index.md"
   - "Design":
-    - "Extending registry": "design/registry-store-protocols.md"
-    - "Caching Architecture": "design/caching.md"
+    - "Protocols": "design/protocols.md"
+    - "Caching": "design/caching.md"
   - "API":
       - Typing: "api/typing.md"
       - Aiohttp Store Adapters: "api/aiohttp.md"
