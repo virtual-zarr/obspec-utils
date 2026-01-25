@@ -95,6 +95,7 @@ plugins:
           inventories:
             - https://docs.python.org/3/objects.inv
             - https://developmentseed.org/obstore/latest/objects.inv
+            - https://developmentseed.org/obspec/latest/objects.inv
 
 # https://github.com/developmentseed/titiler/blob/50934c929cca2fa8d3c408d239015f8da429c6a8/docs/mkdocs.yml#L115-L140
 markdown_extensions:
