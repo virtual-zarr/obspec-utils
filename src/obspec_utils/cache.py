@@ -109,8 +109,18 @@ class CachingReadableStore(ReadableStore):
         """Forward unknown attributes to the underlying store.
 
         This ensures CachingReadableStore is transparent for any additional
-        methods the underlying store may have (e.g., prefix, url attributes).
+        public methods or attributes the underlying store may have.
+
+        Note: Private attributes (starting with '_') are not forwarded.
         """
+        if name.startswith("_"):
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'"
+            )
+        if "_store" not in self.__dict__:
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'"
+            )
         return getattr(self._store, name)
 
     def __reduce__(self):
