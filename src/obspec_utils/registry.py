@@ -5,11 +5,15 @@ Based on https://docs.rs/object_store/0.12.2/src/object_store/registry.rs.html#1
 from __future__ import annotations
 
 from collections import namedtuple
-from typing import Dict, Iterator, Optional, Tuple
+from typing import Dict, Generic, Iterator, Optional, Tuple, TypeVar
 from urllib.parse import urlparse
 
-from obspec_utils.obspec import ReadableStore
+from obspec import Get
+
 from obspec_utils.typing import Path, Url
+
+T = TypeVar("T", bound=Get)
+"""Type variable for store types, bounded by [Get][obspec.Get]."""
 
 UrlKey = namedtuple("UrlKey", ["scheme", "netloc"])
 """
@@ -53,7 +57,7 @@ def get_url_key(url: Url) -> UrlKey:
     return UrlKey(parsed.scheme, parsed.netloc)
 
 
-class PathEntry:
+class PathEntry(Generic[T]):
     """
     Construct a tree of path segments starting from the root
 
@@ -72,17 +76,17 @@ class PathEntry:
     """
 
     def __init__(self) -> None:
-        self.store: Optional[ReadableStore] = None
-        self.children: Dict[str, "PathEntry"] = {}
+        self.store: Optional[T] = None
+        self.children: Dict[str, "PathEntry[T]"] = {}
 
-    def iter_stores(self) -> Iterator[ReadableStore]:
+    def iter_stores(self) -> Iterator[T]:
         """Iterate over all stores in this entry and its children."""
         if self.store is not None:
             yield self.store
         for child in self.children.values():
             yield from child.iter_stores()
 
-    def lookup(self, to_resolve: str) -> Optional[Tuple[ReadableStore, int]]:
+    def lookup(self, to_resolve: str) -> Optional[Tuple[T, int]]:
         """
         Lookup a store based on URL path
 
@@ -105,9 +109,13 @@ class PathEntry:
         return ret
 
 
-class ObjectStoreRegistry:
+class ObjectStoreRegistry(Generic[T]):
     """
-    A registry that maps URLs to object stores.
+    A generic registry that maps URLs to object stores.
+
+    The registry is parameterized by the store type `T`, which must implement
+    at least [Get][obspec.Get]. Downstream libraries can specify stricter
+    protocol requirements by using a more specific type parameter.
 
     The registry can be used as an async context manager to automatically manage
     the lifecycle of stores that support it (like AiohttpStore). Stores that don't
@@ -117,47 +125,68 @@ class ObjectStoreRegistry:
     Examples
     --------
 
-    Using as an async context manager with mixed store types:
+    Basic usage with obstore:
 
     ```python
     from obstore.store import S3Store
     from obspec_utils.registry import ObjectStoreRegistry
-    from obspec_utils.aiohttp import AiohttpStore
 
     registry = ObjectStoreRegistry({
         "s3://my-bucket": S3Store(bucket="my-bucket"),
+    })
+    store, path = registry.resolve("s3://my-bucket/file.nc")
+    ```
+
+    Using with a specific protocol for type safety:
+
+    ```python
+    from typing import Protocol
+    from obspec import List, ListAsync, Head, HeadAsync
+    from obspec_utils.registry import ObjectStoreRegistry
+
+    class ZarrProtocol(List, ListAsync, Head, HeadAsync, Protocol):
+        '''Protocol for Zarr chunk discovery.'''
+
+    registry: ObjectStoreRegistry[ZarrProtocol] = ObjectStoreRegistry({
+        "s3://my-bucket": s3_store,
+    })
+    store, path = registry.resolve("s3://my-bucket/data.zarr")
+    store.list(path)  # Type checker knows this is valid
+    ```
+
+    Using as an async context manager:
+
+    ```python
+    from obspec_utils.aiohttp import AiohttpStore
+
+    registry = ObjectStoreRegistry({
         "https://example.com": AiohttpStore("https://example.com"),
     })
 
     async with registry:
-        # S3Store works as-is, AiohttpStore session is opened
         store, path = registry.resolve("https://example.com/file.nc")
         data = await store.get_range_async(path, start=0, end=1000)
     # AiohttpStore session is closed automatically
     ```
     """
 
-    def __init__(self, stores: dict[Url, ReadableStore] | None = None) -> None:
+    def __init__(self, stores: dict[Url, T] | None = None) -> None:
         """
-        Create a new store registry that matches the provided Urls and
-        [ReadableStore][obspec_utils.obspec.ReadableStore] instances.
+        Create a new store registry.
 
-        The registry accepts any object that satisfies the ReadableStore protocol,
-        which includes obstore classes (S3Store, HTTPStore, etc.) as well as custom
-        implementations like aiohttp wrappers.
+        The registry accepts any object that implements at least [Get][obspec.Get].
+        For stricter type checking, parameterize the registry with a more specific
+        protocol type.
 
         Parameters
         ----------
         stores
-            Mapping of [Url][obspec_utils.typing.Url] to the [ReadableStore][obspec_utils.obspec.ReadableStore]
-            to be registered under the [Url][obspec_utils.typing.Url].
+            Mapping of URLs to stores to register.
 
         Examples
         --------
 
-        Using with obstore:
-
-        ```python exec="on" source="above" session="registry-examples"
+        ```python  exec="on" source="above" session="registry-examples"
         from obstore.store import S3Store
         from obspec_utils.registry import ObjectStoreRegistry
 
@@ -168,36 +197,25 @@ class ObjectStoreRegistry:
         assert path == "group/my-file.nc"
         assert ret is s3store
         ```
-
-        Using with any ReadableStore protocol implementation:
-
-        ```python
-        from obspec_utils.registry import ObjectStoreRegistry
-
-        # Any object implementing the ReadableStore protocol works
-        custom_store = MyCustomStore("https://example.com/data")
-        reg = ObjectStoreRegistry({"https://example.com/data": custom_store})
-        ```
         """
         # Mapping from UrlKey (containing scheme and netlocs) to PathEntry
-        self.map: Dict[UrlKey, PathEntry] = {}
+        self.map: Dict[UrlKey, PathEntry[T]] = {}
         stores = stores or {}
         for url, store in stores.items():
             self.register(url, store)
 
-    def register(self, url: Url, store: ReadableStore) -> None:
+    def register(self, url: Url, store: T) -> None:
         """
-        Register a new store for the provided store [Url][obspec_utils.typing.Url].
+        Register a new store for the provided URL.
 
-        If a store with the same [Url][obspec_utils.typing.Url] existed before, it is replaced.
+        If a store with the same URL existed before, it is replaced.
 
         Parameters
         ----------
         url
-            [Url][obspec_utils.typing.Url] to register the store under.
+            URL to register the store under.
         store
-            Any object implementing the [ReadableStore][obspec_utils.obspec.ReadableStore] protocol.
-            This includes obstore classes (S3Store, HTTPStore, etc.) as well as custom implementations.
+            Any object implementing at least [Get][obspec.Get].
 
         Examples
         --------
@@ -231,7 +249,7 @@ class ObjectStoreRegistry:
         # Update the store
         entry.store = store
 
-    def resolve(self, url: Url) -> Tuple[ReadableStore, Path]:
+    def resolve(self, url: Url) -> Tuple[T, Path]:
         """
         Resolve a URL within the [ObjectStoreRegistry][obspec_utils.registry.ObjectStoreRegistry].
 
@@ -247,8 +265,8 @@ class ObjectStoreRegistry:
 
         Returns
         -------
-        ReadableStore
-            The [ReadableStore][obspec_utils.obspec.ReadableStore] stored at the resolved url.
+        T
+            The store registered at the resolved url.
         Path
             The trailing portion of the url after the prefix of the matching store in the
             [ObjectStoreRegistry][obspec_utils.registry.ObjectStoreRegistry].
@@ -321,12 +339,12 @@ class ObjectStoreRegistry:
                 return store, path_after_prefix
         raise ValueError(f"Could not find an ObjectStore matching the url `{url}`")
 
-    def _iter_stores(self) -> Iterator[ReadableStore]:
+    def _iter_stores(self) -> Iterator[T]:
         """Iterate over all registered stores."""
         for entry in self.map.values():
             yield from entry.iter_stores()
 
-    async def __aenter__(self) -> "ObjectStoreRegistry":
+    async def __aenter__(self) -> "ObjectStoreRegistry[T]":
         """
         Enter the async context manager, opening all stores that support it.
 

@@ -10,7 +10,6 @@ from obspec_utils.registry import (
     get_url_key,
     path_segments,
 )
-from obspec_utils.obspec import ReadableStore
 
 from .mocks import MockReadableStoreWithoutHead
 
@@ -55,28 +54,46 @@ def test_resolve_raises():
 # =============================================================================
 
 
-def test_obstore_satisfies_readable_store_protocol():
-    """Verify that obstore classes satisfy the ReadableStore protocol."""
+def test_obstore_has_get_methods():
+    """Verify that obstore classes have Get protocol methods."""
     memstore = MemoryStore()
-    assert isinstance(memstore, ReadableStore)
+    memstore.put("test.txt", b"test")
+    # Verify it has the expected methods
+    assert hasattr(memstore, "get")
+    assert hasattr(memstore, "get_async")
+    # Verify it works
+    result = memstore.get("test.txt")
+    assert bytes(result.buffer()) == b"test"
 
 
-def test_caching_store_satisfies_readable_store_protocol():
-    """Verify that CachingReadableStore satisfies the ReadableStore protocol."""
+def test_caching_store_has_get_method():
+    """Verify that CachingReadableStore has the Get protocol methods."""
     from obspec_utils.cache import CachingReadableStore
 
     memstore = MemoryStore()
+    memstore.put("test.txt", b"test")
     cached = CachingReadableStore(memstore)
-    assert isinstance(cached, ReadableStore)
+    # Verify it has the expected methods
+    assert hasattr(cached, "get")
+    assert hasattr(cached, "get_async")
+    # Verify it works
+    result = cached.get("test.txt")
+    assert bytes(result.buffer()) == b"test"
 
 
-def test_splitting_store_satisfies_readable_store_protocol():
-    """Verify that SplittingReadableStore satisfies the ReadableStore protocol."""
+def test_splitting_store_has_get_method():
+    """Verify that SplittingReadableStore has the Get protocol methods."""
     from obspec_utils.splitting import SplittingReadableStore
 
     memstore = MemoryStore()
+    memstore.put("test.txt", b"test")
     splitting = SplittingReadableStore(memstore)
-    assert isinstance(splitting, ReadableStore)
+    # Verify it has the expected methods
+    assert hasattr(splitting, "get")
+    assert hasattr(splitting, "get_async")
+    # Verify it works
+    result = splitting.get("test.txt")
+    assert bytes(result.buffer()) == b"test"
 
 
 def test_store_wrappers_compose():
@@ -93,7 +110,10 @@ def test_store_wrappers_compose():
     trace = RequestTrace()
     store = TracingReadableStore(store, trace)
 
-    assert isinstance(store, ReadableStore)
+    # Verify composed store has expected methods
+    assert hasattr(store, "get")
+    assert hasattr(store, "get_range")
+    assert hasattr(store, "get_ranges")
 
     registry = ObjectStoreRegistry({"mem://test": store})
     resolved_store, path = registry.resolve("mem://test/file.txt")

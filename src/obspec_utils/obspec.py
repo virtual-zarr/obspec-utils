@@ -16,53 +16,25 @@ from obspec import (
 
 @runtime_checkable
 class ReadableStore(
-    Get,
-    GetAsync,
-    GetRange,
-    GetRangeAsync,
-    GetRanges,
-    GetRangesAsync,
-    Protocol,
+    Get, GetAsync, GetRange, GetRangeAsync, GetRanges, GetRangesAsync, Protocol
 ):
     """
-    A minimal protocol for read-only object storage access.
+    Full read interface for transparent store wrappers.
 
-    This protocol defines the intersection of obspec protocols required for
-    read-only operations like those used by VirtualiZarr. Any object that
-    implements these methods can be used with ObjectStoreRegistry.
+    This protocol combines the obspec protocols needed for stores that support
+    complete read operations. It's used by transparent proxy wrappers like
+    [CachingReadableStore][obspec_utils.cache.CachingReadableStore],
+    [TracingReadableStore][obspec_utils.tracing.TracingReadableStore], and
+    [SplittingReadableStore][obspec_utils.splitting.SplittingReadableStore].
 
     The protocol includes:
-    - `get` / `get_async`: Download entire files
-    - `get_range` / `get_range_async`: Download a single byte range
-    - `get_ranges` / `get_ranges_async`: Download multiple byte ranges efficiently
+    - [Get][obspec.Get] / [GetAsync][obspec.GetAsync]: Download entire files
+    - [GetRange][obspec.GetRange] / [GetRangeAsync][obspec.GetRangeAsync]: Download byte ranges
+    - [GetRanges][obspec.GetRanges] / [GetRangesAsync][obspec.GetRangesAsync]: Download multiple ranges
 
-    This allows backends like obstore (S3Store, HTTPStore, etc.), aiohttp wrappers,
-    or any custom implementation to be used interchangeably.
-
-    Examples
-    --------
-
-    Using with obstore:
-
-    ```python
-    from obstore.store import S3Store
-    from obspec_utils.registry import ObjectStoreRegistry
-
-    # S3Store implements ReadableStore protocol
-    store = S3Store(bucket="my-bucket")
-    registry = ObjectStoreRegistry({"s3://my-bucket": store})
-    ```
-
-    Using with a custom aiohttp wrapper:
-
-    ```python
-    from obspec_utils.registry import ObjectStoreRegistry
-    from obspec_utils.aiohttp import AiohttpStore
-
-    # AiohttpStore implements ReadableStore protocol
-    store = AiohttpStore("https://example.com/data")
-    registry = ObjectStoreRegistry({"https://example.com/data": store})
-    ```
+    Note: This is a flat composition of obspec protocols, not a hierarchical tier.
+    For parsers with specific requirements, compose your own protocols directly
+    from obspec (e.g., `class ZarrStore(List, Head, Protocol): ...`).
     """
 
     pass
@@ -167,11 +139,8 @@ class BufferedStoreReader:
     A file-like reader with buffered on-demand reads.
 
     This class provides a file-like interface (read, seek, tell) on top of any
-    object that implements the ReadableStore protocol, including obstore classes,
-    AiohttpStore, or custom implementations.
-
-    The reader uses `get_range()` calls to fetch data on-demand, with optional
-    read-ahead buffering for efficiency.
+    object store. The reader uses `get_range()` calls to fetch data on-demand,
+    with optional read-ahead buffering for efficiency.
 
     When to Use
     -----------
@@ -197,16 +166,28 @@ class BufferedStoreReader:
     [ParallelStoreReader][obspec_utils.obspec.ParallelStoreReader] : Uses parallel requests with LRU caching for sparse access.
     """
 
+    class Store(Get, GetRange, Protocol):
+        """
+        Store protocol required by BufferedStoreReader.
+
+        Combines [Get][obspec.Get] and [GetRange][obspec.GetRange] from obspec.
+        """
+
+        pass
+
     def __init__(
-        self, store: ReadableStore, path: str, buffer_size: int = 1024 * 1024
+        self,
+        store: BufferedStoreReader.Store,
+        path: str,
+        buffer_size: int = 1024 * 1024,
     ) -> None:
         """
-        Create a file-like reader for any ReadableStore.
+        Create a file-like reader for any object store.
 
         Parameters
         ----------
         store
-            Any object implementing the [ReadableStore][obspec_utils.obspec.ReadableStore] protocol.
+            Any object implementing [Get][obspec.Get] and [GetRange][obspec.GetRange].
         path
             The path to the file within the store.
         buffer_size
@@ -370,8 +351,6 @@ class EagerStoreReader:
     The parallel fetching strategy is based on Icechunk's approach:
     https://github.com/earth-mover/icechunk/blob/main/icechunk/src/storage/mod.rs
 
-    Works with any ReadableStore protocol implementation.
-
     When to Use
     -----------
     Use EagerStoreReader when:
@@ -397,9 +376,20 @@ class EagerStoreReader:
     [ParallelStoreReader][obspec_utils.obspec.ParallelStoreReader] : Uses parallel requests with LRU caching for sparse access.
     """
 
+    class Store(Get, GetRanges, Protocol):
+        """
+        Store protocol required by EagerStoreReader.
+
+        Combines [Get][obspec.Get] and [GetRanges][obspec.GetRanges] from obspec.
+        Optionally, the store may implement [Head][obspec.Head] for automatic
+        file size detection.
+        """
+
+        pass
+
     def __init__(
         self,
-        store: ReadableStore,
+        store: EagerStoreReader.Store,
         path: str,
         request_size: int = 12 * 1024 * 1024,
         file_size: int | None = None,
@@ -413,7 +403,8 @@ class EagerStoreReader:
         Parameters
         ----------
         store
-            Any object implementing the [ReadableStore][obspec_utils.obspec.ReadableStore] protocol.
+            Any object implementing [Get][obspec.Get] and [GetRanges][obspec.GetRanges].
+            Optionally implements [Head][obspec.Head] for automatic file size detection.
         path
             The path to the file within the store.
         request_size
@@ -422,7 +413,7 @@ class EagerStoreReader:
             parts of this size and fetched using `get_ranges()`.
         file_size
             File size in bytes. If not provided, the reader will attempt to get
-            the size via `store.head()` if the store supports the `Head` protocol.
+            the size via `store.head()` if the store supports [Head][obspec.Head].
             If the size cannot be determined, falls back to a single `get()` request.
         max_concurrent_requests
             Maximum number of parallel range requests. Default is 18. If the file
@@ -522,8 +513,6 @@ class ParallelStoreReader:
     This is particularly efficient for workloads that access multiple non-contiguous
     regions of a file.
 
-    Works with any ReadableStore protocol implementation.
-
     When to Use
     -----------
     Use ParallelStoreReader when:
@@ -549,9 +538,18 @@ class ParallelStoreReader:
     [EagerStoreReader][obspec_utils.obspec.EagerStoreReader] : Loads entire file into memory for fast random access.
     """
 
+    class Store(Get, GetRanges, Protocol):
+        """
+        Store protocol required by ParallelStoreReader.
+
+        Combines [Get][obspec.Get] and [GetRanges][obspec.GetRanges] from obspec.
+        """
+
+        pass
+
     def __init__(
         self,
-        store: ReadableStore,
+        store: ParallelStoreReader.Store,
         path: str,
         chunk_size: int = 1024 * 1024,
         max_cached_chunks: int = 64,
@@ -562,7 +560,7 @@ class ParallelStoreReader:
         Parameters
         ----------
         store
-            Any object implementing the [ReadableStore][obspec_utils.obspec.ReadableStore] protocol.
+            Any object implementing [Get][obspec.Get] and [GetRanges][obspec.GetRanges].
         path
             The path to the file within the store.
         chunk_size

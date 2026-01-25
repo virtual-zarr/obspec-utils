@@ -1,6 +1,6 @@
 """Caching utilities for obspec-utils.
 
-This module provides a caching wrapper for ReadableStore implementations,
+This module provides a caching wrapper for object stores,
 useful for reducing network requests when files are accessed multiple times.
 """
 
@@ -25,20 +25,11 @@ class CachingReadableStore(ReadableStore):
     """
     A wrapper that caches full objects in a MemoryStore on first access.
 
-    This wrapper implements the ReadableStore protocol and caches entire
-    objects when they are first accessed. Subsequent accesses (including
-    range requests) are served from the cache.
+    This wrapper caches entire objects when they are first accessed.
+    Subsequent accesses (including range requests) are served from the cache.
 
     The cache uses LRU (Least Recently Used) eviction when it exceeds
     the maximum size.
-
-    Parameters
-    ----------
-    store
-        The underlying store to wrap.
-    max_size
-        Maximum cache size in bytes. When exceeded, least recently used
-        entries are evicted. Default: 256 MB (256 * 1024 * 1024).
 
     Notes
     -----
@@ -94,7 +85,10 @@ class CachingReadableStore(ReadableStore):
         Parameters
         ----------
         store
-            The underlying store to wrap.
+            Any object implementing the full read interface: [Get][obspec.Get],
+            [GetAsync][obspec.GetAsync], [GetRange][obspec.GetRange],
+            [GetRangeAsync][obspec.GetRangeAsync], [GetRanges][obspec.GetRanges],
+            and [GetRangesAsync][obspec.GetRangesAsync].
         max_size
             Maximum cache size in bytes. Default: 256 MB.
         """

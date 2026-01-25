@@ -155,8 +155,7 @@ class TracingReadableStore(ReadableStore):
     """
     A wrapper that traces all requests made to an underlying store.
 
-    This wrapper implements the ReadableStore protocol and records all
-    get_range/get_ranges calls for later analysis.
+    This wrapper records all get/get_range/get_ranges calls for later analysis.
 
     Examples
     --------
@@ -193,7 +192,10 @@ class TracingReadableStore(ReadableStore):
         Parameters
         ----------
         store
-            The underlying store to wrap.
+            Any object implementing the full read interface: [Get][obspec.Get],
+            [GetAsync][obspec.GetAsync], [GetRange][obspec.GetRange],
+            [GetRangeAsync][obspec.GetRangeAsync], [GetRanges][obspec.GetRanges],
+            and [GetRangesAsync][obspec.GetRangesAsync].
         trace
             RequestTrace instance to record requests to.
         on_request

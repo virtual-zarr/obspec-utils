@@ -130,7 +130,7 @@ class AiohttpGetResultAsync(GetResultAsync):
 
 class AiohttpStore(ReadableStore):
     """
-    An aiohttp-based implementation of the ReadableStore protocol.
+    An aiohttp-based object store implementation.
 
     This provides a lightweight alternative to obstore's HTTPStore for generic
     HTTP/HTTPS access. It's particularly useful for:

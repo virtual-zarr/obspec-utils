@@ -120,7 +120,10 @@ class SplittingReadableStore(ReadableStore):
         Parameters
         ----------
         store
-            The underlying store to wrap.
+            Any object implementing the full read interface: [Get][obspec.Get],
+            [GetAsync][obspec.GetAsync], [GetRange][obspec.GetRange],
+            [GetRangeAsync][obspec.GetRangeAsync], [GetRanges][obspec.GetRanges],
+            and [GetRangesAsync][obspec.GetRangesAsync].
         request_size
             Target size for each parallel range request. Default: 12 MB.
         max_concurrent_requests
