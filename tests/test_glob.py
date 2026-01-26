@@ -125,6 +125,64 @@ class TestCompilePattern:
         assert not pattern.match("file1.nc")
         assert not pattern.match("file9.nc")
 
+    def test_bracket_as_first_char_in_class(self):
+        """[]] should match literal ] when ] is first char in class."""
+        pattern = _compile_pattern("file[]].*")
+        assert pattern.match("file].nc")
+        assert pattern.match("file].txt")
+        assert not pattern.match("filea.nc")
+        assert not pattern.match("file[.nc")
+
+    def test_bracket_as_first_char_in_negated_class(self):
+        """[!]] should match any char except ] when ] is first after !."""
+        pattern = _compile_pattern("file[!]].nc")
+        assert pattern.match("filea.nc")
+        assert pattern.match("file1.nc")
+        assert pattern.match("file[.nc")
+        assert not pattern.match("file].nc")
+
+    def test_bracket_in_class_with_other_chars(self):
+        """[]abc] should match ], a, b, or c."""
+        pattern = _compile_pattern("file[]ab].nc")
+        assert pattern.match("file].nc")
+        assert pattern.match("filea.nc")
+        assert pattern.match("fileb.nc")
+        assert not pattern.match("filec.nc")
+        assert not pattern.match("file[.nc")
+
+    def test_unclosed_bracket_as_literal(self):
+        """[ without closing ] should be treated as literal character."""
+        pattern = _compile_pattern("file[.nc")
+        assert pattern.match("file[.nc")
+        assert not pattern.match("filea.nc")
+        assert not pattern.match("file].nc")
+
+    def test_unclosed_bracket_with_content(self):
+        """[abc without closing ] should treat [ as literal."""
+        pattern = _compile_pattern("file[abc.nc")
+        assert pattern.match("file[abc.nc")
+        assert not pattern.match("filea.nc")
+        assert not pattern.match("fileb.nc")
+
+    def test_trailing_slash_ignored(self):
+        """Trailing slash should not affect matching."""
+        pattern = _compile_pattern("data/")
+        assert pattern.match("data/")
+        assert not pattern.match("data")
+        assert not pattern.match("data/file.nc")
+
+    def test_double_slash_in_pattern(self):
+        """Double slash should match paths with double slash."""
+        pattern = _compile_pattern("data//file.nc")
+        assert pattern.match("data//file.nc")
+        assert not pattern.match("data/file.nc")
+
+    def test_leading_slash_in_pattern(self):
+        """Leading slash should be preserved in match."""
+        pattern = _compile_pattern("/data/file.nc")
+        assert pattern.match("/data/file.nc")
+        assert not pattern.match("data/file.nc")
+
     def test_consecutive_double_stars(self):
         """Consecutive ** segments should be collapsed."""
         pattern = _compile_pattern("data/**/**/*.nc")

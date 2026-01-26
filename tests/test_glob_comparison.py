@@ -36,6 +36,10 @@ def temp_store(tmp_path: Path) -> tuple[Path, LocalStore]:
         "data/readme.txt",
         "other/file.nc",
         "root.nc",
+        # Files for testing ] as first char in character class
+        "data/file].nc",
+        "data/file[.nc",
+        "data/filea.nc",
     ]
     for f in files:
         (tmp_path / f).write_text(f"content of {f}")
@@ -123,6 +127,26 @@ class TestVsStdlibGlob:
             base, pattern, recursive=True
         )
 
+    def test_bracket_literal_in_class(self, temp_store: tuple[Path, LocalStore]):
+        """[]] should match literal ] as first char in class."""
+        base, store = temp_store
+        pattern = "data/file[]].*"
+        assert obspec_glob_paths(store, pattern) == stdlib_glob_paths(base, pattern)
+
+    def test_negated_bracket_literal_in_class(
+        self, temp_store: tuple[Path, LocalStore]
+    ):
+        """[!]] should match any char except ] as first char after !."""
+        base, store = temp_store
+        pattern = "data/file[!]].nc"
+        assert obspec_glob_paths(store, pattern) == stdlib_glob_paths(base, pattern)
+
+    def test_unclosed_bracket_as_literal(self, temp_store: tuple[Path, LocalStore]):
+        """[ without closing ] should be treated as literal character."""
+        base, store = temp_store
+        pattern = "data/file[.nc"
+        assert obspec_glob_paths(store, pattern) == stdlib_glob_paths(base, pattern)
+
 
 class TestVsPathlibGlob:
     """Compare obspec_utils.glob against pathlib.Path.glob."""
@@ -175,4 +199,24 @@ class TestVsPathlibGlob:
     def test_multiple_wildcards(self, temp_store: tuple[Path, LocalStore]):
         base, store = temp_store
         pattern = "data/202?/**/*.nc"
+        assert obspec_glob_paths(store, pattern) == pathlib_glob_paths(base, pattern)
+
+    def test_bracket_literal_in_class(self, temp_store: tuple[Path, LocalStore]):
+        """[]] should match literal ] as first char in class."""
+        base, store = temp_store
+        pattern = "data/file[]].*"
+        assert obspec_glob_paths(store, pattern) == pathlib_glob_paths(base, pattern)
+
+    def test_negated_bracket_literal_in_class(
+        self, temp_store: tuple[Path, LocalStore]
+    ):
+        """[!]] should match any char except ] as first char after !."""
+        base, store = temp_store
+        pattern = "data/file[!]].nc"
+        assert obspec_glob_paths(store, pattern) == pathlib_glob_paths(base, pattern)
+
+    def test_unclosed_bracket_as_literal(self, temp_store: tuple[Path, LocalStore]):
+        """[ without closing ] should be treated as literal character."""
+        base, store = temp_store
+        pattern = "data/file[.nc"
         assert obspec_glob_paths(store, pattern) == pathlib_glob_paths(base, pattern)

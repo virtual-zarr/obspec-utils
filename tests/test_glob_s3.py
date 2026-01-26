@@ -51,6 +51,10 @@ def s3_glob_env(minio_bucket):
         "data/readme.txt",
         "other/file.nc",
         "root.nc",
+        # Files for testing ] as first char in character class
+        "data/file].nc",
+        "data/file[.nc",
+        "data/filea.nc",
     ]
 
     for path in files:
@@ -162,4 +166,34 @@ class TestVsFsspecS3:
             s3_glob_env["bucket"],
         )
         pattern = "data/202?/**/*.nc"
+        assert obspec_glob(store, pattern) == fsspec_glob(fs, bucket, pattern)
+
+    def test_bracket_literal_in_class(self, s3_glob_env):
+        """[]] should match literal ] as first char in class."""
+        store, fs, bucket = (
+            s3_glob_env["store"],
+            s3_glob_env["fs"],
+            s3_glob_env["bucket"],
+        )
+        pattern = "data/file[]].*"
+        assert obspec_glob(store, pattern) == fsspec_glob(fs, bucket, pattern)
+
+    def test_negated_bracket_literal_in_class(self, s3_glob_env):
+        """[!]] should match any char except ] as first char after !."""
+        store, fs, bucket = (
+            s3_glob_env["store"],
+            s3_glob_env["fs"],
+            s3_glob_env["bucket"],
+        )
+        pattern = "data/file[!]].nc"
+        assert obspec_glob(store, pattern) == fsspec_glob(fs, bucket, pattern)
+
+    def test_unclosed_bracket_as_literal(self, s3_glob_env):
+        """[ without closing ] should be treated as literal character."""
+        store, fs, bucket = (
+            s3_glob_env["store"],
+            s3_glob_env["fs"],
+            s3_glob_env["bucket"],
+        )
+        pattern = "data/file[.nc"
         assert obspec_glob(store, pattern) == fsspec_glob(fs, bucket, pattern)
