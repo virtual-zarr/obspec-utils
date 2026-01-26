@@ -208,13 +208,72 @@ effectively performs a full match. This is more efficient than `fullmatch()` in 
 | Metadata | `glob_objects()` | `detail=True` | No | No |
 | Streaming | Yes (iterator) | No (returns list) | Yes (iterator) | No (returns list) |
 
-### Key Differences
+### Key Differences and Rationale
 
-1. **Two functions for different return types**: `glob()` returns paths, `glob_objects()` returns `ObjectMeta`. This provides clean typing without runtime-dependent return types.
-2. **No `maxdepth` parameter**: The obspec `List` primitive is always recursive. Adding `maxdepth` would require post-processing and counting path segments.
-3. **Always case-sensitive**: Object stores treat paths as case-sensitive. Unlike filesystem-based implementations, we don't vary by platform.
-4. **No directory results**: Object stores don't have real directories as separate entities. Only actual objects are returned, not directory prefixes.
-5. **Streaming results**: Returns an iterator that yields results as they're received from the store, enabling efficient processing of large result sets.
+#### 1. Two functions instead of `detail` kwarg
+
+| `obspec_utils` | `fsspec` |
+|----------------|----------|
+| `glob()` returns `Iterator[str]` | `glob()` returns `list[str]` |
+| `glob_objects()` returns `Iterator[ObjectMeta]` | `glob(..., detail=True)` returns `dict` |
+
+**Rationale**: fsspec uses a runtime `detail` parameter that changes the return type, requiring
+`@overload` decorators for proper typing. Two separate functions provide:
+- Clean static typing without runtime-dependent return types
+- Better IDE autocomplete and type inference
+- Follows Python's "explicit is better than implicit"
+
+#### 2. No `maxdepth` parameter
+
+**Rationale**: The obspec `List` primitive is always recursive—there's no way to request a
+shallow listing. Adding `maxdepth` would require:
+- Counting path segments in every result
+- Post-filtering results that exceed the depth limit
+- No performance benefit since all objects are fetched anyway
+
+If depth limiting is needed, users can post-filter:
+```python
+max_depth = 2
+results = [p for p in glob(store, "**/*.nc") if p.count("/") <= max_depth]
+```
+
+#### 3. Always case-sensitive
+
+**Rationale**: Object stores (S3, GCS, Azure Blob) treat paths as case-sensitive. Unlike
+filesystems where case sensitivity varies by platform (case-insensitive on Windows/macOS,
+case-sensitive on Linux), object stores are consistent. Matching this behavior avoids
+surprises when patterns work locally but fail in production.
+
+#### 4. No directory results
+
+**Rationale**: Object stores don't have real directories—only objects with `/`-separated paths.
+What appears as a "directory" is just a common prefix. fsspec's `withdirs=True` returns these
+pseudo-directories, but:
+- They don't exist as separate entities with metadata
+- Including them would require using `ListWithDelimiter` and merging results
+- Most use cases want actual objects, not prefixes
+
+#### 5. Streaming results (iterator vs list)
+
+| `obspec_utils` | `fsspec` |
+|----------------|----------|
+| `Iterator[str]` (lazy) | `list[str]` (eager) |
+
+**Rationale**: Object store listings can return millions of objects. fsspec materializes all
+results into a list before returning, which:
+- Blocks until all pages are fetched
+- Consumes memory proportional to result count
+- Can't process results incrementally
+
+Returning an iterator enables:
+- Processing results as they arrive
+- Early termination (e.g., "find first 10 matches")
+- Bounded memory usage regardless of result count
+
+#### 6. Pattern always required
+
+Unlike `fsspec.glob()` which accepts `"bucket/**"` to list everything, `obspec_utils.glob`
+requires a pattern. To list all objects, use `store.list()` directly.
 
 ## Usage Examples
 
