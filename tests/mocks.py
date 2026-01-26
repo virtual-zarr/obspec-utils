@@ -1,5 +1,15 @@
 """Shared mock classes for tests."""
 
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator, Iterator, Sequence
+
+    from obspec import ObjectMeta
+
 
 class MockGetResult:
     """Mock GetResult for testing."""
@@ -171,3 +181,89 @@ class PicklableStore:
 
     async def get_ranges_async(self, path: str, *, starts, ends=None, lengths=None):
         return self.get_ranges(path, starts=starts, ends=ends, lengths=lengths)
+
+
+class MockListStore:
+    """A mock store implementing the obspec.List and obspec.ListAsync protocols.
+
+    This store is useful for testing glob functionality without requiring
+    a real object store backend.
+
+    Parameters
+    ----------
+    paths
+        List of paths to include in the store. Each path will have mock
+        metadata generated for it.
+    chunk_size
+        Number of objects to return per chunk in list results.
+        Defaults to 1000 (matching typical object store behavior).
+
+    Examples
+    --------
+    >>> store = MockListStore(["data/file1.nc", "data/file2.nc"])
+    >>> for chunk in store.list():
+    ...     for obj in chunk:
+    ...         print(obj["path"])
+    data/file1.nc
+    data/file2.nc
+    """
+
+    def __init__(
+        self,
+        paths: list[str],
+        chunk_size: int = 1000,
+    ) -> None:
+        self._paths = sorted(paths)
+        self._chunk_size = chunk_size
+        # Track calls for testing
+        self.list_calls: list[str | None] = []
+
+    def _make_object_meta(self, path: str, index: int = 0) -> ObjectMeta:
+        """Create mock ObjectMeta for a path."""
+        return {
+            "path": path,
+            "last_modified": datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+            "size": 1000 + index,
+            "e_tag": f"etag-{index}",
+            "version": None,
+        }
+
+    def list(
+        self,
+        prefix: str | None = None,
+        *,
+        offset: str | None = None,
+    ) -> Iterator[Sequence[ObjectMeta]]:
+        """List objects with optional prefix filtering.
+
+        Implements the obspec.List protocol.
+        """
+        self.list_calls.append(prefix)
+
+        # Filter paths by prefix
+        if prefix:
+            filtered = [p for p in self._paths if p.startswith(prefix)]
+        else:
+            filtered = self._paths
+
+        # Apply offset if provided
+        if offset:
+            filtered = [p for p in filtered if p > offset]
+
+        # Yield in chunks
+        for i in range(0, len(filtered), self._chunk_size):
+            chunk = filtered[i : i + self._chunk_size]
+            yield [self._make_object_meta(p, j) for j, p in enumerate(chunk, start=i)]
+
+    async def list_async(
+        self,
+        prefix: str | None = None,
+        *,
+        offset: str | None = None,
+    ) -> AsyncIterator[Sequence[ObjectMeta]]:
+        """Async version of list().
+
+        Implements the obspec.ListAsync protocol.
+        """
+        for chunk in self.list(prefix=prefix, offset=offset):
+            yield chunk
