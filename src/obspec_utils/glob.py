@@ -24,10 +24,11 @@ _GLOB_CHARS = frozenset("*?[")
 
 def _parse_pattern(pattern: str) -> tuple[str, str]:
     """
-    Extract the literal prefix from a pattern.
+    Extract the literal prefix from a pattern for use with store.list().
 
-    Returns (prefix, remaining_pattern) where prefix contains no wildcards.
-    The prefix always ends at a path separator boundary.
+    Returns (prefix, remaining_pattern) where prefix contains no wildcards
+    and ends at a path separator boundary (suitable for obspec's segment-based
+    prefix matching).
 
     Examples
     --------
@@ -38,15 +39,22 @@ def _parse_pattern(pattern: str) -> tuple[str, str]:
     >>> _parse_pattern("**/*.nc")
     ('', '**/*.nc')
     >>> _parse_pattern("data/file.nc")
-    ('data/file.nc', '')
+    ('data/', 'file.nc')
+    >>> _parse_pattern("file.nc")
+    ('', 'file.nc')
     """
     for i, char in enumerate(pattern):
         if char in _GLOB_CHARS:
             # Find the last '/' before the first glob char
             prefix_end = pattern.rfind("/", 0, i) + 1
             return pattern[:prefix_end], pattern[prefix_end:]
+
     # No glob chars - pattern is literal
-    return pattern, ""
+    # Use parent directory as prefix (obspec uses segment-based prefix matching)
+    last_slash = pattern.rfind("/")
+    if last_slash >= 0:
+        return pattern[: last_slash + 1], pattern[last_slash + 1 :]
+    return "", pattern
 
 
 def _translate_segment(segment: str) -> str:

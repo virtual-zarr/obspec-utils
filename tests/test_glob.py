@@ -43,10 +43,16 @@ class TestParsePattern:
         assert remaining == "file[123].nc"
 
     def test_pattern_without_wildcards(self):
-        """Literal pattern should return full path as prefix."""
+        """Literal pattern should use parent directory as prefix."""
         prefix, remaining = _parse_pattern("data/file.nc")
-        assert prefix == "data/file.nc"
-        assert remaining == ""
+        assert prefix == "data/"
+        assert remaining == "file.nc"
+
+    def test_pattern_without_wildcards_no_directory(self):
+        """Literal pattern with no directory should have empty prefix."""
+        prefix, remaining = _parse_pattern("file.nc")
+        assert prefix == ""
+        assert remaining == "file.nc"
 
     def test_pattern_starting_with_wildcard(self):
         """Pattern starting with wildcard should have empty prefix."""

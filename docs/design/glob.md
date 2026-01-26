@@ -82,18 +82,29 @@ Extract the literal prefix from the pattern to optimize the `list()` call:
 GLOB_CHARS = frozenset('*?[')
 
 def _parse_pattern(pattern: str) -> tuple[str, str]:
-    """Find the longest prefix without glob characters."""
+    """Find the longest prefix without glob characters.
+
+    The prefix must end at a path separator boundary to work with
+    obspec's segment-based prefix matching.
+    """
     for i, char in enumerate(pattern):
         if char in GLOB_CHARS:
             prefix_end = pattern.rfind('/', 0, i) + 1
             return pattern[:prefix_end], pattern[prefix_end:]
-    return pattern, ""
+
+    # No glob chars - use parent directory as prefix
+    last_slash = pattern.rfind('/')
+    if last_slash >= 0:
+        return pattern[:last_slash + 1], pattern[last_slash + 1:]
+    return "", pattern
 ```
 
 Examples:
 - `data/2024/**/*.nc` → prefix `data/2024/`, remaining `**/*.nc`
 - `data/*.nc` → prefix `data/`, remaining `*.nc`
 - `**/*.nc` → prefix `""`, remaining `**/*.nc`
+- `data/file.nc` → prefix `data/`, remaining `file.nc` (literal path)
+- `file.nc` → prefix `""`, remaining `file.nc` (no directory)
 
 ### 2. Pattern Compilation
 
