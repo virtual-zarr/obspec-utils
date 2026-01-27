@@ -30,7 +30,11 @@ nav:
           - Tracing: "api/tracing.md"
       - Registry: "api/registry.md"
       - Typing: "api/typing.md"
-
+  - "Design":
+    - "Protocols": "design/protocols.md"
+    - "Caching": "design/caching.md"
+    - "Glob": "design/glob.md"
+  - "Changelog": "changelog.md"
 watch:
   - src/obspec_utils
   - docs
