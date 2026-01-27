@@ -38,8 +38,8 @@ class EagerStoreReader:
 
     Consider alternatives when:
 
-    - You only need a small portion of a large file → use [ParallelStoreReader][obspec_utils.readers.ParallelStoreReader]
-    - Memory is constrained → use [ParallelStoreReader][obspec_utils.readers.ParallelStoreReader] (bounded cache)
+    - You only need a small portion of a large file → use [BlockStoreReader][obspec_utils.readers.BlockStoreReader]
+    - Memory is constrained → use [BlockStoreReader][obspec_utils.readers.BlockStoreReader] (bounded cache)
       or [BufferedStoreReader][obspec_utils.readers.BufferedStoreReader]
     - You're streaming sequentially and won't revisit data → use [BufferedStoreReader][obspec_utils.readers.BufferedStoreReader]
 
@@ -47,7 +47,7 @@ class EagerStoreReader:
     --------
 
     - [BufferedStoreReader][obspec_utils.readers.BufferedStoreReader] : On-demand reads with read-ahead buffering.
-    - [ParallelStoreReader][obspec_utils.readers.ParallelStoreReader] : Uses parallel requests with LRU caching for sparse access.
+    - [BlockStoreReader][obspec_utils.readers.BlockStoreReader] : Block-based reader with LRU caching for sparse access.
     """
 
     class Store(Get, GetRanges, Head, Protocol):

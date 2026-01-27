@@ -29,15 +29,15 @@ class BufferedStoreReader:
     Consider alternatives when:
 
     - You need to read the entire file anyway → use [EagerStoreReader][obspec_utils.readers.EagerStoreReader]
-    - You have many non-contiguous reads → use [ParallelStoreReader][obspec_utils.readers.ParallelStoreReader]
+    - You have many non-contiguous reads → use [BlockStoreReader][obspec_utils.readers.BlockStoreReader]
     - You'll repeatedly access the same regions → use [EagerStoreReader][obspec_utils.readers.EagerStoreReader]
-      or [ParallelStoreReader][obspec_utils.readers.ParallelStoreReader]
+      or [BlockStoreReader][obspec_utils.readers.BlockStoreReader]
 
     See Also
     --------
 
     - [EagerStoreReader][obspec_utils.readers.EagerStoreReader] : Loads entire file into memory for fast random access.
-    - [ParallelStoreReader][obspec_utils.readers.ParallelStoreReader] : Uses parallel requests with LRU caching for sparse access.
+    - [BlockStoreReader][obspec_utils.readers.BlockStoreReader] : Block-based reader with LRU caching for sparse access.
     """
 
     class Store(Get, GetRange, Head, Protocol):

@@ -1,20 +1,21 @@
-"""Parallel store reader with chunk-based LRU caching."""
+"""Block-based store reader with LRU caching."""
 
 from __future__ import annotations
 
 import io
+import warnings
 from collections import OrderedDict
 from typing import Protocol
 
 from obspec import Get, GetRanges, Head
 
 
-class ParallelStoreReader:
+class BlockStoreReader:
     """
-    A file-like reader that uses parallel range requests for efficient chunk fetching.
+    A file-like reader that uses parallel range requests for efficient block fetching.
 
-    This reader divides the file into fixed-size chunks and uses [`get_ranges()`][obspec.GetRanges]
-    to fetch multiple chunks in parallel. An LRU cache stores recently accessed chunks
+    This reader divides the file into fixed-size blocks and uses [`get_ranges()`][obspec.GetRanges]
+    to fetch multiple blocks in parallel. An LRU cache stores recently accessed blocks
     to avoid redundant fetches.
 
     This is particularly efficient for workloads that access multiple non-contiguous
@@ -22,13 +23,13 @@ class ParallelStoreReader:
 
     When to Use
     -----------
-    Use ParallelStoreReader when:
+    Use BlockStoreReader when:
 
     - **Sparse access patterns**: Reading many non-contiguous regions of a file.
     - **Large files with partial reads**: When you only need portions of a large
       file and don't want to load it all into memory.
     - **Memory-constrained environments**: The LRU cache has bounded memory usage
-      (`chunk_size * max_cached_chunks`), regardless of file size.
+      (`block_size * max_cached_blocks`), regardless of file size.
     - **Unknown access patterns**: When you don't know upfront which parts of the
       file you'll need.
 
@@ -37,7 +38,7 @@ class ParallelStoreReader:
     - You'll read the entire file anyway → use [EagerStoreReader][obspec_utils.readers.EagerStoreReader]
     - Access is purely sequential → use [BufferedStoreReader][obspec_utils.readers.BufferedStoreReader]
     - You need repeated access to more data than fits in the cache → use
-      [EagerStoreReader][obspec_utils.readers.EagerStoreReader] to avoid re-fetching evicted chunks
+      [EagerStoreReader][obspec_utils.readers.EagerStoreReader] to avoid re-fetching evicted blocks
 
     See Also
     --------
@@ -48,7 +49,7 @@ class ParallelStoreReader:
 
     class Store(Get, GetRanges, Head, Protocol):
         """
-        Store protocol required by ParallelStoreReader.
+        Store protocol required by BlockStoreReader.
 
         Combines [Get][obspec.Get], [GetRanges][obspec.GetRanges], and
         [Head][obspec.Head] from obspec.
@@ -58,13 +59,13 @@ class ParallelStoreReader:
 
     def __init__(
         self,
-        store: ParallelStoreReader.Store,
+        store: BlockStoreReader.Store,
         path: str,
-        chunk_size: int = 1024 * 1024,
-        max_cached_chunks: int = 64,
+        block_size: int = 1024 * 1024,
+        max_cached_blocks: int = 64,
     ) -> None:
         """
-        Create a parallel reader with chunk-based caching.
+        Create a block-based reader with LRU caching.
 
         Parameters
         ----------
@@ -72,21 +73,21 @@ class ParallelStoreReader:
             Any object implementing [Get][obspec.Get] and [GetRanges][obspec.GetRanges].
         path
             The path to the file within the store.
-        chunk_size
-            Size of each chunk in bytes. Default is 1 MB, tuned for cloud object
-            stores where HTTP request overhead is significant. Smaller chunks mean
+        block_size
+            Size of each block in bytes. Default is 1 MB, tuned for cloud object
+            stores where HTTP request overhead is significant. Smaller blocks mean
             more granular caching but more requests.
-        max_cached_chunks
-            Maximum number of chunks to keep in the LRU cache. Default is 64,
-            giving a 64 MB cache with the default chunk size.
+        max_cached_blocks
+            Maximum number of blocks to keep in the LRU cache. Default is 64,
+            giving a 64 MB cache with the default block size.
         """
         self._store = store
         self._path = path
-        self._chunk_size = chunk_size
-        self._max_cached_chunks = max_cached_chunks
+        self._block_size = block_size
+        self._max_cached_blocks = max_cached_blocks
         self._position = 0
         self._size: int | None = None
-        # LRU cache: OrderedDict with chunk_index -> bytes
+        # LRU cache: OrderedDict with block_index -> bytes
         self._cache: OrderedDict[int, bytes] = OrderedDict()
 
     def _get_size(self) -> int:
@@ -95,39 +96,39 @@ class ParallelStoreReader:
             self._size = self._store.head(self._path)["size"]
         return self._size
 
-    def _get_chunks(self, chunk_indices: list[int]) -> dict[int, bytes]:
-        """Fetch multiple chunks in parallel using get_ranges()."""
-        # Filter out already cached chunks
-        needed = [i for i in chunk_indices if i not in self._cache]
+    def _get_blocks(self, block_indices: list[int]) -> dict[int, bytes]:
+        """Fetch multiple blocks in parallel using get_ranges()."""
+        # Filter out already cached blocks
+        needed = [i for i in block_indices if i not in self._cache]
 
         if needed:
             file_size = self._get_size()
             starts = []
             lengths = []
 
-            for chunk_idx in needed:
-                start = chunk_idx * self._chunk_size
-                # Handle last chunk which may be smaller
-                end = min(start + self._chunk_size, file_size)
+            for block_idx in needed:
+                start = block_idx * self._block_size
+                # Handle last block which may be smaller
+                end = min(start + self._block_size, file_size)
                 starts.append(start)
                 lengths.append(end - start)
 
-            # Fetch all chunks in parallel
+            # Fetch all blocks in parallel
             results = self._store.get_ranges(self._path, starts=starts, lengths=lengths)
 
             # Store in cache
-            for chunk_idx, data in zip(needed, results):
-                self._cache[chunk_idx] = bytes(data)
+            for block_idx, data in zip(needed, results):
+                self._cache[block_idx] = bytes(data)
 
-        # Mark all requested chunks as recently used
-        for i in chunk_indices:
+        # Mark all requested blocks as recently used
+        for i in block_indices:
             self._cache.move_to_end(i)
 
         # Build return dict before eviction
-        result = {i: self._cache[i] for i in chunk_indices}
+        result = {i: self._cache[i] for i in block_indices}
 
         # Evict oldest if over capacity
-        while len(self._cache) > self._max_cached_chunks:
+        while len(self._cache) > self._max_cached_blocks:
             self._cache.popitem(last=False)
 
         return result
@@ -161,25 +162,25 @@ class ParallelStoreReader:
         if size <= 0:
             return b""
 
-        # Determine which chunks we need
-        start_chunk = self._position // self._chunk_size
+        # Determine which blocks we need
+        start_block = self._position // self._block_size
         end_pos = self._position + size
-        end_chunk = (end_pos - 1) // self._chunk_size
+        end_block = (end_pos - 1) // self._block_size
 
-        chunk_indices = list(range(start_chunk, end_chunk + 1))
-        chunks = self._get_chunks(chunk_indices)
+        block_indices = list(range(start_block, end_block + 1))
+        blocks = self._get_blocks(block_indices)
 
         # Assemble the result
         result = io.BytesIO()
-        for chunk_idx in chunk_indices:
-            chunk_data = chunks[chunk_idx]
-            chunk_start = chunk_idx * self._chunk_size
+        for block_idx in block_indices:
+            block_data = blocks[block_idx]
+            block_start = block_idx * self._block_size
 
-            # Calculate slice within this chunk
-            local_start = max(0, self._position - chunk_start)
-            local_end = min(len(chunk_data), end_pos - chunk_start)
+            # Calculate slice within this block
+            local_start = max(0, self._position - block_start)
+            local_end = min(len(block_data), end_pos - block_start)
 
-            result.write(chunk_data[local_start:local_end])
+            result.write(block_data[local_start:local_end])
 
         data = result.getvalue()
         self._position += len(data)
@@ -242,10 +243,10 @@ class ParallelStoreReader:
         return self._position
 
     def close(self) -> None:
-        """Close the reader and release the chunk cache."""
+        """Close the reader and release the block cache."""
         self._cache.clear()
 
-    def __enter__(self) -> "ParallelStoreReader":
+    def __enter__(self) -> "BlockStoreReader":
         """Enter the context manager."""
         return self
 
@@ -254,4 +255,51 @@ class ParallelStoreReader:
         self.close()
 
 
-__all__ = ["ParallelStoreReader"]
+class ParallelStoreReader(BlockStoreReader):
+    """
+    Deprecated: Use :class:`BlockStoreReader` instead.
+
+    This class is provided for backwards compatibility only and will be
+    removed after v0.12.
+    """
+
+    def __init__(
+        self,
+        store: BlockStoreReader.Store,
+        path: str,
+        chunk_size: int = 1024 * 1024,
+        max_cached_chunks: int = 64,
+    ) -> None:
+        """
+        Create a parallel reader with chunk-based caching.
+
+        .. deprecated::
+            Use :class:`BlockStoreReader` instead with ``block_size`` and
+            ``max_cached_blocks`` parameters. Will be removed after v0.12.
+
+        Parameters
+        ----------
+        store
+            Any object implementing [Get][obspec.Get] and [GetRanges][obspec.GetRanges].
+        path
+            The path to the file within the store.
+        chunk_size
+            Size of each chunk in bytes. Default is 1 MB.
+        max_cached_chunks
+            Maximum number of chunks to keep in the LRU cache. Default is 64.
+        """
+        warnings.warn(
+            "ParallelStoreReader is deprecated, use BlockStoreReader instead. "
+            "Will be removed after v0.12.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(
+            store=store,
+            path=path,
+            block_size=chunk_size,
+            max_cached_blocks=max_cached_chunks,
+        )
+
+
+__all__ = ["BlockStoreReader", "ParallelStoreReader"]
