@@ -61,7 +61,7 @@ class ReadableFile(Protocol):
 
     The `obspec_utils` readers ([`BufferedStoreReader`][obspec_utils.readers.BufferedStoreReader],
     [`EagerStoreReader`][obspec_utils.readers.EagerStoreReader],
-    [`ParallelStoreReader`][obspec_utils.readers.EagerStoreReader]) all implement this protocol,
+    [`BlockStoreReader`][obspec_utils.readers.BlockStoreReader]) all implement this protocol,
     allowing them to be used interchangeably wherever a [`ReadableFile`][obspec_utils.protocols.ReadableFile] is expected.
 
     !!! Warning

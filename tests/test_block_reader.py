@@ -1,17 +1,17 @@
-"""Tests specific to ParallelStoreReader."""
+"""Tests specific to BlockStoreReader."""
 
 from obstore.store import MemoryStore
 
-from obspec_utils.readers import ParallelStoreReader
+from obspec_utils.readers import BlockStoreReader
 from obspec_utils.wrappers import RequestTrace, TracingReadableStore
 
 
-def test_parallel_reader_cross_chunk_read():
-    """Test ParallelStoreReader reading across chunk boundaries."""
+def test_block_reader_cross_block_read():
+    """Test BlockStoreReader reading across block boundaries."""
     memstore = MemoryStore()
     memstore.put("test.txt", b"0123456789ABCDEF")
 
-    reader = ParallelStoreReader(memstore, "test.txt", chunk_size=4)
+    reader = BlockStoreReader(memstore, "test.txt", block_size=4)
 
     reader.seek(2)
     assert reader.read(6) == b"234567"
@@ -20,14 +20,12 @@ def test_parallel_reader_cross_chunk_read():
     assert reader.read(10) == b"0123456789"
 
 
-def test_parallel_reader_caching():
-    """Test that ParallelStoreReader chunks are cached correctly."""
+def test_block_reader_caching():
+    """Test that BlockStoreReader blocks are cached correctly."""
     memstore = MemoryStore()
     memstore.put("test.txt", b"0123456789ABCDEF")
 
-    reader = ParallelStoreReader(
-        memstore, "test.txt", chunk_size=4, max_cached_chunks=2
-    )
+    reader = BlockStoreReader(memstore, "test.txt", block_size=4, max_cached_blocks=2)
 
     reader.seek(0)
     assert reader.read(4) == b"0123"
@@ -35,80 +33,78 @@ def test_parallel_reader_caching():
     reader.seek(4)
     assert reader.read(4) == b"4567"
 
-    # Third chunk evicts first from cache
+    # Third block evicts first from cache
     reader.seek(8)
     assert reader.read(4) == b"89AB"
 
-    # First chunk refetched
+    # First block refetched
     reader.seek(0)
     assert reader.read(4) == b"0123"
 
 
-def test_parallel_reader_read_spanning_more_chunks_than_cache():
-    """Read spanning more chunks than max_cached_chunks should succeed."""
+def test_block_reader_read_spanning_more_blocks_than_cache():
+    """Read spanning more blocks than max_cached_blocks should succeed."""
     memstore = MemoryStore()
-    # 20 bytes = 5 chunks of 4 bytes each
+    # 20 bytes = 5 blocks of 4 bytes each
     memstore.put("test.txt", b"0123456789ABCDEFGHIJ")
 
-    reader = ParallelStoreReader(
-        memstore, "test.txt", chunk_size=4, max_cached_chunks=2
-    )
+    reader = BlockStoreReader(memstore, "test.txt", block_size=4, max_cached_blocks=2)
 
     assert reader.read(20) == b"0123456789ABCDEFGHIJ"
 
 
-def test_parallel_reader_lru_eviction_order():
+def test_block_reader_lru_eviction_order():
     """LRU eviction should evict least recently used, not oldest inserted."""
     memstore = MemoryStore()
-    # 16 bytes = 4 chunks of 4 bytes each
+    # 16 bytes = 4 blocks of 4 bytes each
     memstore.put("test.txt", b"0123456789ABCDEF")
 
     trace = RequestTrace()
     traced = TracingReadableStore(memstore, trace)
-    reader = ParallelStoreReader(traced, "test.txt", chunk_size=4, max_cached_chunks=2)
+    reader = BlockStoreReader(traced, "test.txt", block_size=4, max_cached_blocks=2)
 
-    # Read chunk 0
+    # Read block 0
     reader.seek(0)
-    reader.read(4)  # fetches chunk 0
+    reader.read(4)  # fetches block 0
 
-    # Read chunk 1
+    # Read block 1
     reader.seek(4)
-    reader.read(4)  # fetches chunk 1, cache = [0, 1]
+    reader.read(4)  # fetches block 1, cache = [0, 1]
 
-    # Re-read chunk 0 (makes it most recently used)
+    # Re-read block 0 (makes it most recently used)
     reader.seek(0)
     reader.read(4)  # cache hit, cache = [1, 0]
 
     trace.clear()
 
-    # Read chunk 2 - should evict chunk 1 (LRU), not chunk 0
+    # Read block 2 - should evict block 1 (LRU), not block 0
     reader.seek(8)
-    reader.read(4)  # fetches chunk 2, cache = [0, 2]
+    reader.read(4)  # fetches block 2, cache = [0, 2]
 
-    # Chunk 0 should still be cached (no request)
+    # Block 0 should still be cached (no request)
     trace.clear()
     reader.seek(0)
     reader.read(4)
-    assert trace.total_requests == 0, "Chunk 0 should still be in cache"
+    assert trace.total_requests == 0, "Block 0 should still be in cache"
 
-    # Chunk 1 should have been evicted (needs request)
+    # Block 1 should have been evicted (needs request)
     trace.clear()
     reader.seek(4)
     reader.read(4)
-    assert trace.total_requests == 1, "Chunk 1 should have been evicted"
+    assert trace.total_requests == 1, "Block 1 should have been evicted"
 
 
-def test_parallel_reader_cache_hit_no_requests():
+def test_block_reader_cache_hit_no_requests():
     """Re-reading cached data should not make new store requests."""
     memstore = MemoryStore()
     memstore.put("test.txt", b"0123456789ABCDEF")
 
     trace = RequestTrace()
     traced = TracingReadableStore(memstore, trace)
-    reader = ParallelStoreReader(traced, "test.txt", chunk_size=4, max_cached_chunks=4)
+    reader = BlockStoreReader(traced, "test.txt", block_size=4, max_cached_blocks=4)
 
     # Initial read
-    reader.read(8)  # fetches chunks 0 and 1
+    reader.read(8)  # fetches blocks 0 and 1
 
     # Re-read same data
     trace.clear()
@@ -118,44 +114,44 @@ def test_parallel_reader_cache_hit_no_requests():
     assert trace.total_requests == 0, f"Expected 0 requests, got {trace.total_requests}"
 
 
-def test_parallel_reader_partial_cache_hit():
-    """Read spanning cached and uncached chunks should only fetch uncached."""
+def test_block_reader_partial_cache_hit():
+    """Read spanning cached and uncached blocks should only fetch uncached."""
     memstore = MemoryStore()
     memstore.put("test.txt", b"0123456789ABCDEF")
 
     trace = RequestTrace()
     traced = TracingReadableStore(memstore, trace)
-    reader = ParallelStoreReader(traced, "test.txt", chunk_size=4, max_cached_chunks=4)
+    reader = BlockStoreReader(traced, "test.txt", block_size=4, max_cached_blocks=4)
 
-    # Read chunk 0 only
+    # Read block 0 only
     reader.read(4)
     trace.clear()
 
-    # Read chunks 0 and 1 - should only fetch chunk 1
+    # Read blocks 0 and 1 - should only fetch block 1
     reader.seek(0)
     reader.read(8)
 
-    # Should have 1 get_ranges request for chunk 1 only
+    # Should have 1 get_ranges request for block 1 only
     assert trace.total_requests == 1
-    assert trace.requests[0].start == 4  # chunk 1 starts at byte 4
+    assert trace.requests[0].start == 4  # block 1 starts at byte 4
     assert trace.requests[0].length == 4
 
 
-def test_parallel_reader_read_within_single_chunk():
-    """Multiple reads within the same chunk should reuse cache."""
+def test_block_reader_read_within_single_block():
+    """Multiple reads within the same block should reuse cache."""
     memstore = MemoryStore()
     memstore.put("test.txt", b"0123456789ABCDEF")
 
     trace = RequestTrace()
     traced = TracingReadableStore(memstore, trace)
-    reader = ParallelStoreReader(traced, "test.txt", chunk_size=8, max_cached_chunks=2)
+    reader = BlockStoreReader(traced, "test.txt", block_size=8, max_cached_blocks=2)
 
-    # First read fetches chunk 0
+    # First read fetches block 0
     reader.read(2)  # "01"
-    assert trace.total_requests == 2  # get (size) + get_ranges (chunk)
+    assert trace.total_requests == 2  # get (size) + get_ranges (block)
     trace.clear()
 
-    # Subsequent reads within same chunk
+    # Subsequent reads within same block
     reader.read(2)  # "23"
     assert trace.total_requests == 0
 
@@ -164,14 +160,12 @@ def test_parallel_reader_read_within_single_chunk():
     assert trace.total_requests == 0
 
 
-def test_parallel_reader_read_at_chunk_boundary():
-    """Read starting exactly at chunk boundary."""
+def test_block_reader_read_at_block_boundary():
+    """Read starting exactly at block boundary."""
     memstore = MemoryStore()
     memstore.put("test.txt", b"0123456789ABCDEF")
 
-    reader = ParallelStoreReader(
-        memstore, "test.txt", chunk_size=4, max_cached_chunks=4
-    )
+    reader = BlockStoreReader(memstore, "test.txt", block_size=4, max_cached_blocks=4)
 
     # Read exactly at boundaries
     reader.seek(4)
@@ -184,35 +178,33 @@ def test_parallel_reader_read_at_chunk_boundary():
     assert reader.read(4) == b"CDEF"
 
 
-def test_parallel_reader_last_chunk_smaller():
-    """Last chunk smaller than chunk_size is handled correctly."""
+def test_block_reader_last_block_smaller():
+    """Last block smaller than block_size is handled correctly."""
     memstore = MemoryStore()
-    # 10 bytes with chunk_size=4: chunks are [0-3], [4-7], [8-9]
+    # 10 bytes with block_size=4: blocks are [0-3], [4-7], [8-9]
     memstore.put("test.txt", b"0123456789")
 
-    reader = ParallelStoreReader(
-        memstore, "test.txt", chunk_size=4, max_cached_chunks=4
-    )
+    reader = BlockStoreReader(memstore, "test.txt", block_size=4, max_cached_blocks=4)
 
-    # Read the partial last chunk
+    # Read the partial last block
     reader.seek(8)
     assert reader.read(4) == b"89"  # only 2 bytes available
 
-    # Read spanning into partial chunk
+    # Read spanning into partial block
     reader.seek(6)
     assert reader.read(10) == b"6789"  # 4 bytes available
 
 
-def test_parallel_reader_read_zero_no_cache_effect():
+def test_block_reader_read_zero_no_cache_effect():
     """read(0) should not fetch or modify cache."""
     memstore = MemoryStore()
     memstore.put("test.txt", b"0123456789ABCDEF")
 
     trace = RequestTrace()
     traced = TracingReadableStore(memstore, trace)
-    reader = ParallelStoreReader(traced, "test.txt", chunk_size=4, max_cached_chunks=2)
+    reader = BlockStoreReader(traced, "test.txt", block_size=4, max_cached_blocks=2)
 
-    # Prepopulate cache with chunk 0
+    # Prepopulate cache with block 0
     reader.read(4)
     trace.clear()
 
@@ -223,16 +215,16 @@ def test_parallel_reader_read_zero_no_cache_effect():
     assert len(reader._cache) == 1  # cache unchanged
 
 
-def test_parallel_reader_seek_preserves_cache():
+def test_block_reader_seek_preserves_cache():
     """Seeking should not invalidate the cache."""
     memstore = MemoryStore()
     memstore.put("test.txt", b"0123456789ABCDEF")
 
     trace = RequestTrace()
     traced = TracingReadableStore(memstore, trace)
-    reader = ParallelStoreReader(traced, "test.txt", chunk_size=4, max_cached_chunks=4)
+    reader = BlockStoreReader(traced, "test.txt", block_size=4, max_cached_blocks=4)
 
-    # Read chunks 0 and 1
+    # Read blocks 0 and 1
     reader.read(8)
     trace.clear()
 
@@ -250,14 +242,12 @@ def test_parallel_reader_seek_preserves_cache():
     assert trace.total_requests == 0, "Cached data should still be available"
 
 
-def test_parallel_reader_cache_cleared_on_close():
+def test_block_reader_cache_cleared_on_close():
     """Cache should be cleared after close()."""
     memstore = MemoryStore()
     memstore.put("test.txt", b"0123456789ABCDEF")
 
-    reader = ParallelStoreReader(
-        memstore, "test.txt", chunk_size=4, max_cached_chunks=4
-    )
+    reader = BlockStoreReader(memstore, "test.txt", block_size=4, max_cached_blocks=4)
 
     reader.read(8)  # populate cache
     assert len(reader._cache) == 2

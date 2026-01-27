@@ -1,15 +1,17 @@
 """
 Common tests for all reader classes, parameterized across BufferedStoreReader,
-EagerStoreReader, and ParallelStoreReader.
+EagerStoreReader, and BlockStoreReader.
 """
 
 import pickle
+import warnings
 from io import BytesIO
 
 import pytest
-from obstore.store import MemoryStore
+from obstore.store import MemoryStore, LocalStore
 
 from obspec_utils.readers import (
+    BlockStoreReader,
     BufferedStoreReader,
     EagerStoreReader,
     ParallelStoreReader,
@@ -18,7 +20,7 @@ from obspec_utils.readers import (
 from .mocks import PicklableStore
 
 
-ALL_READERS = [BufferedStoreReader, EagerStoreReader, ParallelStoreReader]
+ALL_READERS = [BufferedStoreReader, EagerStoreReader, BlockStoreReader]
 
 
 # =============================================================================
@@ -391,6 +393,49 @@ def test_reader_seek_invalid_whence_raises(ReaderClass):
         reader.seek(0, 3)
 
 
+@pytest.mark.parametrize("ReaderClass", [EagerStoreReader, BlockStoreReader])
+def test_reader_interface_matches_buffered(local_netcdf4_file, ReaderClass) -> None:
+    """Test that readers implement the same interface as BufferedStoreReader."""
+    store = LocalStore()
+    buffered_reader = BufferedStoreReader(store=store, path=local_netcdf4_file)
+    other_reader = ReaderClass(store=store, path=local_netcdf4_file)
+
+    assert buffered_reader.readall() == other_reader.readall()
+    assert isinstance(other_reader.readall(), bytes)
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_multiple_reads(local_netcdf4_file, ReaderClass) -> None:
+    """Test that readers can perform multiple reads with seek/tell."""
+    store = LocalStore()
+    reader = ReaderClass(store=store, path=local_netcdf4_file)
+
+    # Read the first 100 bytes
+    chunk1 = reader.read(100)
+    assert len(chunk1) == 100
+    assert isinstance(chunk1, bytes)
+
+    # Read the next 100 bytes
+    chunk2 = reader.read(100)
+    assert len(chunk2) == 100
+    assert isinstance(chunk2, bytes)
+
+    # The two chunks should be different (different parts of the file)
+    assert chunk1 != chunk2
+
+    # Test tell
+    position = reader.tell()
+    assert position == 200
+
+    # Test seek
+    reader.seek(0)
+    assert reader.tell() == 0
+
+    # Re-reading from the beginning should give us the same data
+    chunk1_again = reader.read(100)
+    assert chunk1 == chunk1_again
+
+
 # =============================================================================
 # Pickling tests
 # =============================================================================
@@ -472,3 +517,46 @@ def test_reader_pickle_multiple_protocols(ReaderClass):
 
         restored.seek(0)
         assert restored.read() == b"hello world"
+
+
+# =============================================================================
+# ParallelStoreReader deprecation tests
+# =============================================================================
+
+
+class TestParallelStoreReaderDeprecation:
+    """Tests for the deprecated ParallelStoreReader alias."""
+
+    def test_deprecation_warning(self):
+        """ParallelStoreReader should emit a deprecation warning."""
+        memstore = MemoryStore()
+        memstore.put("test.txt", b"0123456789ABCDEF")
+
+        with pytest.warns(
+            DeprecationWarning, match="ParallelStoreReader is deprecated"
+        ):
+            reader = ParallelStoreReader(memstore, "test.txt")
+            reader.close()
+
+    def test_old_parameters_work(self):
+        """ParallelStoreReader should accept chunk_size and max_cached_chunks."""
+        memstore = MemoryStore()
+        memstore.put("test.txt", b"0123456789ABCDEF")
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            reader = ParallelStoreReader(
+                memstore, "test.txt", chunk_size=4, max_cached_chunks=2
+            )
+
+        # Verify the parameters were translated correctly
+        assert reader._block_size == 4
+        assert reader._max_cached_blocks == 2
+
+        # Verify it still works
+        assert reader.read(8) == b"01234567"
+        reader.close()
+
+    def test_is_subclass_of_block_store_reader(self):
+        """ParallelStoreReader should be a subclass of BlockStoreReader."""
+        assert issubclass(ParallelStoreReader, BlockStoreReader)

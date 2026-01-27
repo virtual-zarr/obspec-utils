@@ -14,7 +14,12 @@ extra:
 
 nav:
   - "index.md"
+  - "Design":
+    - "Protocols": "design/protocols.md"
+    - "Caching": "design/caching.md"
+    - "Glob": "design/glob.md"
   - "API":
+      - Glob: "api/glob.md"
       - Protocols: "api/protocols.md"
       - Readers: "api/readers.md"
       - Stores:
@@ -28,6 +33,7 @@ nav:
   - "Design":
     - "Protocols": "design/protocols.md"
     - "Caching": "design/caching.md"
+    - "Glob": "design/glob.md"
   - "Changelog": "changelog.md"
 watch:
   - src/obspec_utils

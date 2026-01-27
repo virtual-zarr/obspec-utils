@@ -22,22 +22,22 @@ class BufferedStoreReader:
     - **Sequential reading with rare backward seeks**: Best for workloads that
       mostly read forward through a file with rare backward seeks.
     - **Simple use cases**: When you need a basic file-like interface without
-      caching or parallel fetching.
+      caching or concurrent fetching.
     - **Streaming data**: Processing data as it arrives without loading the full
       file into memory.
 
     Consider alternatives when:
 
     - You need to read the entire file anyway → use [EagerStoreReader][obspec_utils.readers.EagerStoreReader]
-    - You have many non-contiguous reads → use [ParallelStoreReader][obspec_utils.readers.ParallelStoreReader]
+    - You have many non-contiguous reads → use [BlockStoreReader][obspec_utils.readers.BlockStoreReader]
     - You'll repeatedly access the same regions → use [EagerStoreReader][obspec_utils.readers.EagerStoreReader]
-      or [ParallelStoreReader][obspec_utils.readers.ParallelStoreReader]
+      or [BlockStoreReader][obspec_utils.readers.BlockStoreReader]
 
     See Also
     --------
 
     - [EagerStoreReader][obspec_utils.readers.EagerStoreReader] : Loads entire file into memory for fast random access.
-    - [ParallelStoreReader][obspec_utils.readers.ParallelStoreReader] : Uses parallel requests with LRU caching for sparse access.
+    - [BlockStoreReader][obspec_utils.readers.BlockStoreReader] : Block-based reader with LRU caching for sparse access.
     """
 
     class Store(Get, GetRange, Head, Protocol):
