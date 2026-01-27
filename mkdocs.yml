@@ -14,10 +14,8 @@ extra:
 
 nav:
   - "index.md"
-  - "Design":
-    - "Protocols": "design/protocols.md"
-    - "Caching": "design/caching.md"
-    - "Glob": "design/glob.md"
+  - "User Guide":
+    - "Opening Data with Xarray": "user-guide/opening-data-with-xarray.md"
   - "API":
       - Glob: "api/glob.md"
       - Protocols: "api/protocols.md"
