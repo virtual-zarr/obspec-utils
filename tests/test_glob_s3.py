@@ -197,3 +197,92 @@ class TestVsFsspecS3:
         )
         pattern = "data/file[.nc"
         assert obspec_glob(store, pattern) == fsspec_glob(fs, bucket, pattern)
+
+
+class TestErrorHandling:
+    """Test that glob returns useful errors for misconfigured stores."""
+
+    def test_misconfigured_store_wrong_credentials(self, minio_bucket):
+        """Glob with wrong credentials should raise an error with useful message."""
+        bucket = minio_bucket["bucket"]
+        endpoint = minio_bucket["endpoint"]
+
+        # Create store with wrong credentials
+        store = S3Store(
+            bucket,
+            config={
+                "AWS_ENDPOINT_URL": endpoint,
+                "AWS_ACCESS_KEY_ID": "wrong_key",
+                "AWS_SECRET_ACCESS_KEY": "wrong_secret",
+                "AWS_REGION": "us-east-1",
+                "AWS_ALLOW_HTTP": "true",
+            },
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            list(glob(store, "**/*.nc"))
+
+        # Verify the error message contains useful information
+        error_msg = str(exc_info.value).lower()
+        assert any(
+            keyword in error_msg
+            for keyword in ["access", "denied", "credentials", "signature", "forbidden"]
+        ), f"Error message should indicate auth failure, got: {exc_info.value}"
+
+    def test_misconfigured_store_wrong_endpoint(self, minio_bucket):
+        """Glob with wrong endpoint should raise a connection error."""
+        bucket = minio_bucket["bucket"]
+
+        # Create store with wrong endpoint (port that's not listening)
+        store = S3Store(
+            bucket,
+            config={
+                "AWS_ENDPOINT_URL": "http://localhost:19999",
+                "AWS_ACCESS_KEY_ID": minio_bucket["username"],
+                "AWS_SECRET_ACCESS_KEY": minio_bucket["password"],
+                "AWS_REGION": "us-east-1",
+                "AWS_ALLOW_HTTP": "true",
+            },
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            list(glob(store, "**/*.nc"))
+
+        # Verify the error indicates a connection issue
+        error_msg = str(exc_info.value).lower()
+        assert any(
+            keyword in error_msg
+            for keyword in ["connect", "connection", "refused", "error", "failed"]
+        ), f"Error message should indicate connection failure, got: {exc_info.value}"
+
+    def test_misconfigured_store_nonexistent_bucket(self, minio_bucket):
+        """Glob with nonexistent bucket should raise a bucket not found error."""
+        endpoint = minio_bucket["endpoint"]
+
+        # Create store pointing to a bucket that doesn't exist
+        store = S3Store(
+            "nonexistent-bucket-12345",
+            config={
+                "AWS_ENDPOINT_URL": endpoint,
+                "AWS_ACCESS_KEY_ID": minio_bucket["username"],
+                "AWS_SECRET_ACCESS_KEY": minio_bucket["password"],
+                "AWS_REGION": "us-east-1",
+                "AWS_ALLOW_HTTP": "true",
+            },
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            list(glob(store, "**/*.nc"))
+
+        # Verify the error indicates the bucket doesn't exist
+        error_msg = str(exc_info.value).lower()
+        assert any(
+            keyword in error_msg
+            for keyword in [
+                "bucket",
+                "nosuchbucket",
+                "not found",
+                "does not exist",
+                "access denied",
+            ]
+        ), f"Error message should indicate bucket issue, got: {exc_info.value}"
