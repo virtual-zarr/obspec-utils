@@ -16,12 +16,12 @@ class EagerStoreReader:
     subsequent reads from the in-memory cache. Useful for files that will be
     read multiple times or when seeking is frequent.
 
-    By default, the file is fetched using parallel range requests via
+    By default, the file is fetched using concurrent range requests via
     [`get_ranges()`][obspec.GetRanges], which can significantly improve load time for large files.
     The defaults (12 MB request size, max 18 concurrent requests) are tuned for
     cloud storage. The file size is determined automatically via a HEAD request.
 
-    The parallel fetching strategy is based on Icechunk's approach:
+    The concurrent fetching strategy is based on Icechunk's approach:
     https://github.com/earth-mover/icechunk/blob/main/icechunk/src/storage/mod.rs
 
     When to Use
@@ -33,7 +33,7 @@ class EagerStoreReader:
     - **Repeated random access**: After the initial load, any byte is accessible
       with no network latency.
     - **Small to medium files**: Files that fit comfortably in memory.
-    - **Parallel initial fetch**: The default settings use parallel requests
+    - **Concurrent initial fetch**: The default settings use concurrent requests
       for faster download on cloud storage.
 
     Consider alternatives when:
@@ -81,7 +81,7 @@ class EagerStoreReader:
         path
             The path to the file within the store.
         request_size
-            Target size for each parallel range request in bytes. Default is 12 MB,
+            Target size for each concurrent range request in bytes. Default is 12 MB,
             tuned for cloud storage throughput. The file will be divided into
             parts of this size and fetched using [`get_ranges()`][obspec.GetRanges].
         file_size
@@ -89,7 +89,7 @@ class EagerStoreReader:
             `store.head()`. Pass this to skip the HEAD request if you already
             know the file size.
         max_concurrent_requests
-            Maximum number of parallel range requests. Default is 18. If the file
+            Maximum number of concurrent range requests. Default is 18. If the file
             would require more requests than this, request sizes are increased to
             fit within this limit.
         """
@@ -118,7 +118,7 @@ class EagerStoreReader:
             result = store.get(path)
             data = bytes(result.buffer())
         else:
-            # Parallel range requests
+            # Concurrent range requests
             starts = []
             lengths = []
             for i in range(num_requests):
@@ -127,7 +127,7 @@ class EagerStoreReader:
                 starts.append(start)
                 lengths.append(length)
 
-            # Fetch all parts in parallel
+            # Fetch all parts with concurrency
             results = store.get_ranges(path, starts=starts, lengths=lengths)
 
             # Concatenate into single buffer

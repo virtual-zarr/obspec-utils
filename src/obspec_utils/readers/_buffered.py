@@ -22,7 +22,7 @@ class BufferedStoreReader:
     - **Sequential reading with rare backward seeks**: Best for workloads that
       mostly read forward through a file with rare backward seeks.
     - **Simple use cases**: When you need a basic file-like interface without
-      caching or parallel fetching.
+      caching or concurrent fetching.
     - **Streaming data**: Processing data as it arrives without loading the full
       file into memory.
 

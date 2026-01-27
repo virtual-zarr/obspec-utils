@@ -75,7 +75,7 @@ During data access:
 
 **Store-level caching is appropriate here because:**
 
-- Chunks may be re-read by different computations
+- Blocks may be re-read by different computations
 - Cache should be shared across all consumers of the store
 - Lifecycle is independent of any single reader
 
@@ -102,7 +102,7 @@ reader.close()
 
 **Characteristics:**
 
-- Fetches file using parallel `get_ranges()` for speed
+- Fetches file using concurrent `get_ranges()` for speed
 - Caches in `BytesIO` buffer
 - Cache is isolated to this reader instance
 - Memory freed on `close()` or context manager exit
@@ -113,26 +113,26 @@ reader.close()
 - Small-to-medium files that fit in memory
 - When you'll read most of the file anyway
 
-### Reader-Level: ParallelStoreReader
+### Reader-Level: BlockStoreReader
 
-`ParallelStoreReader` uses chunk-based LRU caching:
+`BlockStoreReader` uses block-based LRU caching:
 
 ```python
-from obspec_utils.readers import ParallelStoreReader
+from obspec_utils.readers import BlockStoreReader
 
-reader = ParallelStoreReader(
+reader = BlockStoreReader(
     store, "file.nc",
-    chunk_size=256 * 1024,      # 256 KB chunks
-    max_cached_chunks=64,       # Up to 64 chunks cached
+    block_size=256 * 1024,      # 256 KB blocks
+    max_cached_blocks=64,       # Up to 64 blocks cached
 )
 
-# Chunks fetched on demand via get_ranges()
+# Blocks fetched on demand via get_ranges()
 data = reader.read(1000)
 ```
 
 **Characteristics:**
 
-- Bounded memory usage: `chunk_size * max_cached_chunks`
+- Bounded memory usage: `block_size * max_cached_blocks`
 - LRU eviction when cache is full
 - Good for sparse/random access patterns
 
@@ -152,8 +152,8 @@ from obspec_utils.readers import BufferedStoreReader
 reader = BufferedStoreReader(store, "file.nc", buffer_size=1024 * 1024)
 
 # Sequential reads benefit from buffering
-while chunk := reader.read(4096):
-    process(chunk)
+while block := reader.read(4096):
+    process(block)
 ```
 
 **Characteristics:**
@@ -354,8 +354,8 @@ results = dask.compute(*tasks)
 |---------------|-------------------|
 | Parse HDF5/NetCDF file | `EagerStoreReader` |
 | Sequential streaming | `BufferedStoreReader` |
-| Sparse random access | `ParallelStoreReader` |
-| Unknown pattern, large file | `ParallelStoreReader` |
+| Sparse random access | `BlockStoreReader` |
+| Unknown pattern, large file | `BlockStoreReader` |
 | Small file, repeated access | `EagerStoreReader` |
 
 ### Should I use store-level caching?
@@ -372,7 +372,7 @@ results = dask.compute(*tasks)
 
 ### SplittingReadableStore
 
-`SplittingReadableStore` accelerates `get()` by splitting large requests into parallel `get_ranges()`:
+`SplittingReadableStore` accelerates `get()` by splitting large requests into concurrent `get_ranges()`:
 
 ```python
 from obspec_utils.wrappers import SplittingReadableStore
@@ -384,17 +384,17 @@ fast_store = SplittingReadableStore(
 )
 ```
 
-This extracts the parallel fetching logic from `EagerStoreReader` into a composable wrapper. It composes naturally with `CachingReadableStore`:
+This extracts the concurrent fetching logic from `EagerStoreReader` into a composable wrapper. It composes naturally with `CachingReadableStore`:
 
 ```python
 from obspec_utils.wrappers import CachingReadableStore, SplittingReadableStore
 
-# Compose: fast parallel fetches + caching
+# Compose: fast concurrent fetches + caching
 store = S3Store(bucket="my-bucket")
 store = SplittingReadableStore(store)  # Split large fetches
 store = CachingReadableStore(store)    # Cache results
 
-# First get(): parallel fetch -> cache
+# First get(): concurrent fetch -> cache
 # Second get(): served from cache
 ```
 
@@ -402,7 +402,7 @@ store = CachingReadableStore(store)    # Cache results
 
 - Only affects `get()` and `get_async()` - range requests pass through unchanged
 - Requires `head()` support to determine file size (falls back to single request otherwise)
-- Tuned for cloud storage (12 MB chunks, 18 concurrent requests by default)
+- Tuned for cloud storage (12 MB blocks, 18 concurrent requests by default)
 
 ## Summary
 

@@ -12,10 +12,10 @@ from obspec import Get, GetRanges, Head
 
 class BlockStoreReader:
     """
-    A file-like reader that uses parallel range requests for efficient block fetching.
+    A file-like reader that uses concurrent range requests for efficient block fetching.
 
     This reader divides the file into fixed-size blocks and uses [`get_ranges()`][obspec.GetRanges]
-    to fetch multiple blocks in parallel. An LRU cache stores recently accessed blocks
+    to fetch multiple blocks with concurrency. An LRU cache stores recently accessed blocks
     to avoid redundant fetches.
 
     This is particularly efficient for workloads that access multiple non-contiguous
@@ -97,7 +97,7 @@ class BlockStoreReader:
         return self._size
 
     def _get_blocks(self, block_indices: list[int]) -> dict[int, bytes]:
-        """Fetch multiple blocks in parallel using get_ranges()."""
+        """Fetch multiple concurrent blocks using get_ranges()."""
         # Filter out already cached blocks
         needed = [i for i in block_indices if i not in self._cache]
 
@@ -113,7 +113,7 @@ class BlockStoreReader:
                 starts.append(start)
                 lengths.append(end - start)
 
-            # Fetch all blocks in parallel
+            # Fetch all blocks with concurrency
             results = self._store.get_ranges(self._path, starts=starts, lengths=lengths)
 
             # Store in cache

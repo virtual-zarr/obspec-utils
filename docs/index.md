@@ -9,10 +9,10 @@ Utilities for interacting with object storage, based on [obspec](https://github.
 - **`obspec_utils.protocols`**: Minimal protocols ([`ReadableStore`][obspec_utils.protocols.ReadableStore],
     [`ReadableFile`][obspec_utils.protocols.ReadableFile]) defining read-only interfaces for object storage access
 - **`obspec_utils.readers`**: File-like interfaces ([`BufferedStoreReader`][obspec_utils.readers.BufferedStoreReader],
-    [`EagerStoreReader`][obspec_utils.readers.EagerStoreReader], [`ParallelStoreReader`][obspec_utils.readers.ParallelStoreReader])
+    [`EagerStoreReader`][obspec_utils.readers.EagerStoreReader], [`BlockStoreReader`][obspec_utils.readers.BlockStoreReader])
     for reading from object stores
 - **`obspec_utils.stores`**: Alternative store implementations (e.g., [`AiohttpStore`][obspec_utils.stores.AiohttpStore] for generic HTTP access)
-- **`obspec_utils.wrappers`**: Composable store wrappers for caching, tracing, and parallel fetching
+- **`obspec_utils.wrappers`**: Composable store wrappers for caching, tracing, and concurrent fetching
 - **`obspec_utils.registry`**: [`ObjectStoreRegistry`][obspec_utils.registry.ObjectStoreRegistry] for managing multiple stores and resolving URLs
 
 ## Design Philosophy
@@ -84,7 +84,7 @@ data = await store.get_range_async(path, start=0, end=1000)
 The file handlers provide file-like interfaces (read, seek, tell) for reading from object stores. They work with **any** [`ReadableStore`][obspec_utils.protocols.ReadableStore] implementation:
 
 ```python
-from obspec_utils.readers import BufferedStoreReader, EagerStoreReader, ParallelStoreReader
+from obspec_utils.readers import BufferedStoreReader, EagerStoreReader, BlockStoreReader
 
 # Works with obstore
 from obstore.store import S3Store
@@ -104,9 +104,9 @@ reader.seek(0)           # Seek back to start
 eager_reader = EagerStoreReader(store, "file.bin")
 data = eager_reader.readall()
 
-# Parallel reader uses get_ranges() for efficient multi-chunk fetching with LRU cache
-parallel_reader = ParallelStoreReader(store, "file.bin", chunk_size=256*1024)
-data = parallel_reader.read(1000)
+# Block reader uses get_ranges() for efficient multi-chunk fetching with LRU cache
+block_reader = BlockStoreReader(store, "file.bin", chunk_size=256*1024)
+data = block_reader.read(1000)
 ```
 
 ## Contributing
