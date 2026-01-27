@@ -1,7 +1,7 @@
 """Request splitting utilities for obspec-utils.
 
 This module provides a store wrapper that splits large get() requests into
-parallel get_ranges() calls for faster fetching of large files.
+concurrent get_ranges() calls for faster fetching of large files.
 """
 
 from __future__ import annotations
@@ -21,10 +21,10 @@ if TYPE_CHECKING:
 
 class SplittingReadableStore(ReadableStore):
     """
-    Wraps a store to split large get() requests into parallel [get_ranges()][obspec.GetRanges].
+    Wraps a store to split large get() requests into concurrent [get_ranges()][obspec.GetRanges].
 
-    This accelerates fetching large files by dividing them into chunks and
-    fetching in parallel via [get_ranges()][obspec.GetRanges]. The splitting is
+    This accelerates fetching large files by dividing them into chunks and concurrent
+    fetching via [get_ranges()][obspec.GetRanges]. The splitting is
     transparent to callers - they see a normal get() interface.
 
     Designed to compose with [CachingReadableStore][obspec_utils.wrappers.CachingReadableStore]:
@@ -34,10 +34,10 @@ class SplittingReadableStore(ReadableStore):
     from obspec_utils.wrappers import SplittingReadableStore, CachingReadableStore
 
     store = S3Store(bucket="my-bucket")
-    store = SplittingReadableStore(store)  # Fast parallel fetches
+    store = SplittingReadableStore(store)  # Fast concurrent fetches
     store = CachingReadableStore(store)    # Cache the results
 
-    # get() is now: parallel fetch -> cache
+    # get() is now: concurrent fetch -> cache
     result = store.get("large-file.nc")
     ```
 
@@ -46,10 +46,10 @@ class SplittingReadableStore(ReadableStore):
     store
         The underlying store to wrap.
     request_size
-        Target size for each parallel range request in bytes. Default: 12 MB.
+        Target size for each concurrent range request in bytes. Default: 12 MB.
         Tuned for cloud storage throughput.
     max_concurrent_requests
-        Maximum number of parallel requests. Default: 18. If a file would
+        Maximum number of concurrent requests. Default: 18. If a file would
         require more requests than this, request sizes are increased to fit.
 
     Notes
@@ -58,7 +58,7 @@ class SplittingReadableStore(ReadableStore):
     Range requests ([get_range][obspec.GetRange], [get_ranges][obspec.GetRanges]) pass
     through unchanged since they're already appropriately sized by the caller.
 
-    The parallel fetching strategy is based on Icechunk's approach:
+    The concurrent fetching strategy is based on Icechunk's approach:
     https://github.com/earth-mover/icechunk/blob/main/icechunk/src/storage/mod.rs
 
     Examples
@@ -72,7 +72,7 @@ class SplittingReadableStore(ReadableStore):
     store = S3Store(bucket="my-bucket")
     fast_store = SplittingReadableStore(store)
 
-    # Large file fetched via parallel requests
+    # Large file fetched via concurrent requests
     result = fast_store.get("large-file.nc")
     ```
 
@@ -85,7 +85,7 @@ class SplittingReadableStore(ReadableStore):
     store = SplittingReadableStore(store)
     store = CachingReadableStore(store)
 
-    # First access: parallel fetch, then cached
+    # First access: concurrent fetch, then cached
     result1 = store.get("file.nc")
     # Second access: served from cache (no fetch)
     result2 = store.get("file.nc")
@@ -121,9 +121,9 @@ class SplittingReadableStore(ReadableStore):
             [GetRangesAsync][obspec.GetRangesAsync], [Head][obspec.Head],
             and [HeadAsync][obspec.HeadAsync].
         request_size
-            Target size for each parallel range request. Default: 12 MB.
+            Target size for each concurrent range request. Default: 12 MB.
         max_concurrent_requests
-            Maximum number of parallel requests. Default: 18.
+            Maximum number of concurrent requests. Default: 18.
         """
         self._store = store
         self._request_size = request_size
@@ -148,7 +148,7 @@ class SplittingReadableStore(ReadableStore):
         return getattr(self._store, name)
 
     def _compute_ranges(self, file_size: int) -> tuple[list[int], list[int]] | None:
-        """Compute start positions and lengths for parallel fetching.
+        """Compute start positions and lengths for concurrent fetching.
 
         Returns None if splitting isn't beneficial (single request sufficient).
         """
@@ -190,10 +190,10 @@ class SplittingReadableStore(ReadableStore):
         return await temp.get_async(path)
 
     def get(self, path: str, *, options: GetOptions | None = None) -> GetResult:
-        """Get file, using parallel fetching if beneficial.
+        """Get file, using concurrent fetching if beneficial.
 
         If the file is large enough to benefit from splitting, fetches via
-        parallel [get_ranges()][obspec.GetRanges]. Otherwise falls back to a single
+        concurrent [get_ranges()][obspec.GetRanges]. Otherwise falls back to a single
         [get()][obspec.Get] request.
         """
         file_size = self.head(path)["size"]
@@ -211,7 +211,7 @@ class SplittingReadableStore(ReadableStore):
     async def get_async(
         self, path: str, *, options: GetOptions | None = None
     ) -> GetResultAsync:
-        """Async get, using parallel fetching if beneficial."""
+        """Async get, using concurrent fetching if beneficial."""
         file_size = (await self.head_async(path))["size"]
         ranges = self._compute_ranges(file_size)
 
