@@ -58,6 +58,7 @@ xarray = [
   "xarray",
   "h5netcdf",
   "h5py",
+  "cftime",
 ]
 fsspec = [
   "s3fs",
