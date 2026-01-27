@@ -7,6 +7,7 @@ This package provides:
 - `obspec_utils.wrappers`: Caching, tracing, and request splitting
 - `obspec_utils.stores`: Concrete store implementations
 - `obspec_utils.registry`: URL-to-store mapping
+- `obspec_utils.glob`: Glob pattern matching for object stores
 
 Example
 -------
@@ -29,5 +30,12 @@ data = reader.read(1024)
 """
 
 from obspec_utils._version import __version__
+from obspec_utils.glob import glob, glob_async, glob_objects, glob_objects_async
 
-__all__ = ["__version__"]
+__all__ = [
+    "__version__",
+    "glob",
+    "glob_objects",
+    "glob_async",
+    "glob_objects_async",
+]

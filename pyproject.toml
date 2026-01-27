@@ -52,6 +52,7 @@ test = [
     "pytest-xdist",
     "minio",
     "docker",
+    "s3fs",
 ]
 xarray = [
   "xarray",
