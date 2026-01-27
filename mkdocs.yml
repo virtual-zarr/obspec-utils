@@ -14,9 +14,6 @@ extra:
 
 nav:
   - "index.md"
-  - "Design":
-    - "Protocols": "design/protocols.md"
-    - "Caching": "design/caching.md"
   - "API":
       - Protocols: "api/protocols.md"
       - Readers: "api/readers.md"
@@ -28,7 +25,10 @@ nav:
           - Tracing: "api/tracing.md"
       - Registry: "api/registry.md"
       - Typing: "api/typing.md"
-
+  - "Design":
+    - "Protocols": "design/protocols.md"
+    - "Caching": "design/caching.md"
+  - "Changelog": "changelog.md"
 watch:
   - src/obspec_utils
   - docs
