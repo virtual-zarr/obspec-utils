@@ -16,6 +16,7 @@ nav:
   - "index.md"
   - "User Guide":
     - "Opening Data with Xarray": "user-guide/opening-data-with-xarray.md"
+    - "Opening Data with Rasterio": "user-guide/opening-data-with-rasterio.md"
     - "Finding Files on the Cloud": "user-guide/finding-files.md"
     - "Minimizing Data Transfer via Caching": "user-guide/caching-remote-data.md"
     - "Debugging Slow Data Access": "user-guide/debugging-data-access.md"

@@ -60,6 +60,11 @@ xarray = [
   "h5py",
   "cftime",
   "scipy",
+  "rasterio",
+  "rioxarray",
+]
+dask = [
+  "dask",
 ]
 fsspec = [
   "s3fs",
