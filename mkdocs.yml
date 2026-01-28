@@ -16,7 +16,8 @@ nav:
   - "index.md"
   - "User Guide":
     - "Opening Data with Xarray": "user-guide/opening-data-with-xarray.md"
-    - "Finding files on cloud object storage": "user-guide/finding-files.md"
+    - "Finding Files on the Cloud": "user-guide/finding-files.md"
+    - "Debugging Slow Data Access": "user-guide/debugging-data-access.md"
   - "API":
       - Glob: "api/glob.md"
       - Protocols: "api/protocols.md"
