@@ -5,7 +5,8 @@ Based on https://docs.rs/object_store/0.12.2/src/object_store/registry.rs.html#1
 from __future__ import annotations
 
 from collections import namedtuple
-from typing import Dict, Generic, Iterator, Optional, Tuple, TypeVar
+from collections.abc import Iterator
+from typing import Generic, TypeVar
 from urllib.parse import urlparse
 
 from obspec import Get
@@ -76,8 +77,8 @@ class PathEntry(Generic[T]):
     """
 
     def __init__(self) -> None:
-        self.store: Optional[T] = None
-        self.children: Dict[str, "PathEntry[T]"] = {}
+        self.store: T | None = None
+        self.children: dict[str, PathEntry[T]] = {}
 
     def iter_stores(self) -> Iterator[T]:
         """Iterate over all stores in this entry and its children."""
@@ -86,7 +87,7 @@ class PathEntry(Generic[T]):
         for child in self.children.values():
             yield from child.iter_stores()
 
-    def lookup(self, to_resolve: str) -> Optional[Tuple[T, int]]:
+    def lookup(self, to_resolve: str) -> tuple[T, int] | None:
         """
         Lookup a store based on URL path
 
@@ -200,7 +201,7 @@ class ObjectStoreRegistry(Generic[T]):
         ```
         """
         # Mapping from UrlKey (containing scheme and netlocs) to PathEntry
-        self.map: Dict[UrlKey, PathEntry[T]] = {}
+        self.map: dict[UrlKey, PathEntry[T]] = {}
         stores = stores or {}
         for url, store in stores.items():
             self.register(url, store)
@@ -250,7 +251,7 @@ class ObjectStoreRegistry(Generic[T]):
         # Update the store
         entry.store = store
 
-    def resolve(self, url: Url) -> Tuple[T, Path]:
+    def resolve(self, url: Url) -> tuple[T, Path]:
         """
         Resolve a URL within the [ObjectStoreRegistry][obspec_utils.registry.ObjectStoreRegistry].
 
