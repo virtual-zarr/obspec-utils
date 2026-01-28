@@ -95,6 +95,7 @@ class EagerStoreReader:
         """
         self._store = store
         self._path = path
+        self._closed = False
 
         # Determine file size if not provided
         if file_size is None:
@@ -155,9 +156,27 @@ class EagerStoreReader:
         """Return the current position in the cached file."""
         return self._buffer.tell()
 
+    @property
+    def closed(self) -> bool:
+        """Return True if the reader has been closed."""
+        return self._closed
+
+    def readable(self) -> bool:
+        """Return True, indicating this reader supports reading."""
+        return True
+
+    def seekable(self) -> bool:
+        """Return True, indicating this reader supports seeking."""
+        return True
+
+    def writable(self) -> bool:
+        """Return False, indicating this reader does not support writing."""
+        return False
+
     def close(self) -> None:
         """Close the reader and release the in-memory buffer."""
         self._buffer = io.BytesIO(b"")
+        self._closed = True
 
     def __enter__(self) -> "EagerStoreReader":
         """Enter the context manager."""

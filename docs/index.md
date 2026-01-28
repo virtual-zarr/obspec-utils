@@ -12,7 +12,8 @@ Utilities for interacting with object storage, based on [obspec](https://github.
     [`EagerStoreReader`][obspec_utils.readers.EagerStoreReader], [`BlockStoreReader`][obspec_utils.readers.BlockStoreReader])
     for reading from object stores
 - **`obspec_utils.stores`**: Alternative store implementations (e.g., [`AiohttpStore`][obspec_utils.stores.AiohttpStore] for generic HTTP access)
-- **`obspec_utils.wrappers`**: Composable store wrappers for caching, tracing, and concurrent fetching
+- **`obspec_utils.wrappers`**: Composable store wrappers for [caching][obspec_utils.wrappers.CachingReadableStore],
+    [tracing][obspec_utils.wrappers.TracingReadableStore], and [concurrent fetching][obspec_utils.wrappers.SplittingReadableStore]
 - **`obspec_utils.registry`**: [`ObjectStoreRegistry`][obspec_utils.registry.ObjectStoreRegistry] for managing multiple stores and resolving URLs
 
 ## Design Philosophy

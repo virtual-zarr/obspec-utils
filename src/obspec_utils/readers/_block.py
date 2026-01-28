@@ -87,6 +87,7 @@ class BlockStoreReader:
         self._max_cached_blocks = max_cached_blocks
         self._position = 0
         self._size: int | None = None
+        self._closed = False
         # LRU cache: OrderedDict with block_index -> bytes
         self._cache: OrderedDict[int, bytes] = OrderedDict()
 
@@ -242,9 +243,27 @@ class BlockStoreReader:
         """
         return self._position
 
+    @property
+    def closed(self) -> bool:
+        """Return True if the reader has been closed."""
+        return self._closed
+
+    def readable(self) -> bool:
+        """Return True, indicating this reader supports reading."""
+        return True
+
+    def seekable(self) -> bool:
+        """Return True, indicating this reader supports seeking."""
+        return True
+
+    def writable(self) -> bool:
+        """Return False, indicating this reader does not support writing."""
+        return False
+
     def close(self) -> None:
         """Close the reader and release the block cache."""
         self._cache.clear()
+        self._closed = True
 
     def __enter__(self) -> "BlockStoreReader":
         """Enter the context manager."""

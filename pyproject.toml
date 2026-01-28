@@ -59,6 +59,7 @@ xarray = [
   "h5netcdf",
   "h5py",
   "cftime",
+  "scipy",
 ]
 fsspec = [
   "s3fs",
@@ -100,4 +101,9 @@ exclude_lines = [
   "no cov",
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
+]
+
+[tool.pytest.ini_options]
+markers = [
+  "network: marks tests as requiring network access (run with --network)",
 ]
