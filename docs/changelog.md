@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.9.0 (2025-01-28)
+
+This release includes the addition of globbing functionality, a rename of ParallelStoreReader to BlockStoreReader, improvements to file-like properties, and expanded user guide documentation covering xarray integration, globbing, caching, and debugging.
+
+### Breaking Changes
+
+- Rename ParallelStoreReader to BlockStoreReader by @maxrjones in https://github.com/virtual-zarr/obspec-utils/pull/44
+
+### Features
+
+- Implement globbing in obspec_utils by @maxrjones in https://github.com/virtual-zarr/obspec-utils/pull/42
+- Start user guide with xarray section by @maxrjones in https://github.com/virtual-zarr/obspec-utils/pull/46
+- Add user guide section on globbing by @maxrjones in https://github.com/virtual-zarr/obspec-utils/pull/51
+- Add user guide section on debugging slow access by @maxrjones in https://github.com/virtual-zarr/obspec-utils/pull/53
+- Add user guide section on caching by @maxrjones in https://github.com/virtual-zarr/obspec-utils/pull/54
+
+### Bug Fixes
+
+- Add closed, readable, seekable, writable properties by @maxrjones in https://github.com/virtual-zarr/obspec-utils/pull/52
+- fix: allow Head redirects by @maxrjones in https://github.com/virtual-zarr/obspec-utils/pull/49
+
+### Chores
+
+- Add changelog by @maxrjones in https://github.com/virtual-zarr/obspec-utils/pull/45
+- Minor typing improvements by @maxrjones in https://github.com/virtual-zarr/obspec-utils/pull/47
+- Add functions used in docs to exported API by @maxrjones in https://github.com/virtual-zarr/obspec-utils/pull/48
+
+**Full Changelog**: https://github.com/virtual-zarr/obspec-utils/compare/v0.8.0...v0.9.0
+
 ## v0.8.0 (2025-01-25)
 
 This release includes a redesign of sub-module structure, a significant bug fix in ParallelStoreReader, pickling support for CachingReadableStore, and the addition of the Head protocol to ReadableStore for more efficient file size determination.
