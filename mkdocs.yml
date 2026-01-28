@@ -17,7 +17,6 @@ nav:
   - "User Guide":
     - "Opening Data with Xarray": "user-guide/opening-data-with-xarray.md"
     - "Finding Files on the Cloud": "user-guide/finding-files.md"
-    - "Caching Remote Data": "user-guide/caching-remote-data.md"
     - "Debugging Slow Data Access": "user-guide/debugging-data-access.md"
   - "API":
       - Glob: "api/glob.md"
