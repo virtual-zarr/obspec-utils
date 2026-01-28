@@ -401,4 +401,4 @@ def path_segments(path: str) -> Iterator[str]:
     return filter(lambda x: x, path.split("/"))
 
 
-__all__ = ["ObjectStoreRegistry"]
+__all__ = ["ObjectStoreRegistry", "UrlKey", "get_url_key", "path_segments"]
