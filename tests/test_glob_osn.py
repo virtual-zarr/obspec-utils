@@ -3,13 +3,11 @@ Compare obspec_utils.glob against fsspec.glob using real-world S3 data.
 
 These tests hit the USGS OSN public endpoint and require network access.
 
-To run these tests, set the environment variable:
-    RUN_REAL_WORLD_TESTS=1 uv run --all-groups pytest tests/test_real_world.py -v
+To run these tests:
+    uv run --all-groups pytest tests/test_glob_osn.py -v --network
 """
 
 from __future__ import annotations
-
-import os
 
 import pytest
 import s3fs
@@ -18,11 +16,8 @@ from obspec_utils import glob
 from obstore.store import S3Store
 
 
-# Skip all tests in this module unless RUN_REAL_WORLD_TESTS is set
-pytestmark = pytest.mark.skipif(
-    not os.environ.get("RUN_REAL_WORLD_TESTS"),
-    reason="Set RUN_REAL_WORLD_TESTS=1 to run real-world S3 tests",
-)
+# Skip all tests in this module unless --network is passed
+pytestmark = pytest.mark.network
 
 
 STORAGE_ENDPOINT = "https://usgs.osn.mghpcc.org"
