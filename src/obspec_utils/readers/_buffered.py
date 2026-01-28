@@ -74,6 +74,7 @@ class BufferedStoreReader:
         self._buffer_size = buffer_size
         self._position = 0
         self._size: int | None = None
+        self._closed = False
         # Read-ahead buffer
         self._buffer = b""
         self._buffer_start = 0
@@ -194,10 +195,28 @@ class BufferedStoreReader:
         """
         return self._position
 
+    @property
+    def closed(self) -> bool:
+        """Return True if the reader has been closed."""
+        return self._closed
+
+    def readable(self) -> bool:
+        """Return True, indicating this reader supports reading."""
+        return True
+
+    def seekable(self) -> bool:
+        """Return True, indicating this reader supports seeking."""
+        return True
+
+    def writable(self) -> bool:
+        """Return False, indicating this reader does not support writing."""
+        return False
+
     def close(self) -> None:
         """Close the reader and release the read-ahead buffer."""
         self._buffer = b""
         self._buffer_start = 0
+        self._closed = True
 
     def __enter__(self) -> "BufferedStoreReader":
         """Enter the context manager."""

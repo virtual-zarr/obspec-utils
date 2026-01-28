@@ -560,3 +560,66 @@ class TestParallelStoreReaderDeprecation:
     def test_is_subclass_of_block_store_reader(self):
         """ParallelStoreReader should be a subclass of BlockStoreReader."""
         assert issubclass(ParallelStoreReader, BlockStoreReader)
+
+
+# =============================================================================
+# HTTP Store / xarray integration tests
+# =============================================================================
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_closed_property(ReaderClass):
+    """Test that readers have a closed property for file-like compatibility."""
+    memstore = MemoryStore()
+    memstore.put("test.txt", b"hello world")
+
+    reader = ReaderClass(memstore, "test.txt")
+    assert reader.closed is False
+
+    reader.close()
+    assert reader.closed is True
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_closed_property_with_context_manager(ReaderClass):
+    """Test that closed property is True after exiting context manager."""
+    memstore = MemoryStore()
+    memstore.put("test.txt", b"hello world")
+
+    with ReaderClass(memstore, "test.txt") as reader:
+        assert reader.closed is False
+
+    assert reader.closed is True
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_readable(ReaderClass):
+    """Test that readers report as readable."""
+    memstore = MemoryStore()
+    memstore.put("test.txt", b"hello world")
+
+    reader = ReaderClass(memstore, "test.txt")
+    assert reader.readable() is True
+    reader.close()
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_seekable(ReaderClass):
+    """Test that readers report as seekable."""
+    memstore = MemoryStore()
+    memstore.put("test.txt", b"hello world")
+
+    reader = ReaderClass(memstore, "test.txt")
+    assert reader.seekable() is True
+    reader.close()
+
+
+@pytest.mark.parametrize("ReaderClass", ALL_READERS)
+def test_reader_writable(ReaderClass):
+    """Test that readers report as not writable."""
+    memstore = MemoryStore()
+    memstore.put("test.txt", b"hello world")
+
+    reader = ReaderClass(memstore, "test.txt")
+    assert reader.writable() is False
+    reader.close()
