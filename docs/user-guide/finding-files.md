@@ -28,6 +28,11 @@ for f in files[:5]:
     print(f"  {f['path'].split('/')[-1]}")
 ```
 
+!!! warning "Use the class methods rather than `obstore` top-level functions"
+    When using `obspec_utils` wrappers like `CachingReadableStore`, call methods
+    directly on the store (e.g., `store.list()`) rather than using `obstore` functions
+    (e.g., `obstore.list(store)`). The wrappers implement the `obspec` protocol, which decouples them from specific store instances. `Obstore` top-level functions are tied to the specific stores implemented by `obstore`, so they will not work with the `obspec`-based wrappers provided by `obspec-utils`.
+
 ## Finding Files Matching a Pattern
 
 When you need files matching specific criteria (e.g., all files from year 2100), use `glob`:
