@@ -1,4 +1,4 @@
-# Globbing
+# Finding files matching patterns in cloud storage
 
 This guide shows how to use `obspec-utils` glob functions to find files matching patterns in cloud storage.
 
