@@ -29,13 +29,13 @@ for f in files[:5]:
 ```
 
 !!! warning "Use the class methods rather than `obstore` top-level functions"
-    When using `obspec_utils` wrappers like `CachingReadableStore`, call methods
+    When using `obspec_utils` wrappers like [`CachingReadableStore`][obspec_utils.wrappers.CachingReadableStore], call methods
     directly on the store (e.g., `store.list()`) rather than using `obstore` functions
     (e.g., `obstore.list(store)`). The wrappers implement the `obspec` protocol, which decouples them from specific store instances. `Obstore` top-level functions are tied to the specific stores implemented by `obstore`, so they will not work with the `obspec`-based wrappers provided by `obspec-utils`.
 
 ## Finding Files Matching a Pattern
 
-When you need files matching specific criteria (e.g., all files from year 2100), use `glob`:
+When you need files matching specific criteria (e.g., all files from year 2100), use [`glob`][obspec_utils.glob.glob]:
 
 ```python exec="on" source="above" session="find" result="code"
 from obspec_utils import glob
@@ -76,7 +76,7 @@ for p in paths:
 
 ## Getting File Sizes and Dates
 
-To get metadata (size, last modified time) along with paths, use `glob_objects`:
+To get metadata (size, last modified time) along with paths, use [`glob_objects`][obspec_utils.glob.glob_objects]:
 
 ```python exec="on" source="above" session="find" result="code"
 from obspec_utils import glob_objects
@@ -102,7 +102,7 @@ Listing files in cloud storage requires network requests. The more files the ser
 
 ### Use Specific Prefixes
 
-The `glob` function automatically extracts the longest literal prefix from your pattern to minimize the files the server must enumerate:
+The [`glob`][obspec_utils.glob.glob] function automatically extracts the longest literal prefix from your pattern to minimize the files the server must enumerate:
 
 | Pattern | Server lists from | Files enumerated |
 |---------|-------------------|------------------|
@@ -123,7 +123,7 @@ glob(store, "NEX-GDDP/BCSD/rcp85/day/atmos/tasmax/r1i1p1/v1.0/*_2100.nc")
 
 ### Process Results Lazily
 
-Both `glob` and `glob_objects` return iterators, so you can process results as they arrive without loading all paths into memory:
+Both [`glob`][obspec_utils.glob.glob] and [`glob_objects`][obspec_utils.glob.glob_objects] return iterators, so you can process results as they arrive without loading all paths into memory:
 
 ```python exec="on" source="above" session="find" result="code"
 # Stop after finding 3 files (doesn't load all results)
@@ -137,7 +137,7 @@ for path in glob(store, "NEX-GDDP/BCSD/rcp85/day/atmos/tasmax/r1i1p1/v1.0/*_2100
 
 ## Async Usage
 
-For async contexts, use `glob_async` and `glob_objects_async`:
+For async contexts, use [`glob_async`][obspec_utils.glob.glob_async] and [`glob_objects_async`][obspec_utils.glob.glob_objects_async]:
 
 ```python exec="on" source="above" session="find" result="code"
 import asyncio
