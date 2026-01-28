@@ -16,6 +16,7 @@ nav:
   - "index.md"
   - "User Guide":
     - "Opening Data with Xarray": "user-guide/opening-data-with-xarray.md"
+    - "Finding files on cloud object storage": "user-guide/finding-files.md"
   - "API":
       - Glob: "api/glob.md"
       - Protocols: "api/protocols.md"
