@@ -15,6 +15,7 @@ This release includes the addition of globbing functionality, a rename of Parall
 - Add user guide section on globbing by @maxrjones in https://github.com/virtual-zarr/obspec-utils/pull/51
 - Add user guide section on debugging slow access by @maxrjones in https://github.com/virtual-zarr/obspec-utils/pull/53
 - Add user guide section on caching by @maxrjones in https://github.com/virtual-zarr/obspec-utils/pull/54
+- Add user guide section on rasterio by @maxrjones in https://github.com/virtual-zarr/obspec-utils/pull/56
 
 ### Bug Fixes
 
