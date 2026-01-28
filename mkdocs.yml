@@ -16,6 +16,7 @@ nav:
   - "index.md"
   - "User Guide":
     - "Opening Data with Xarray": "user-guide/opening-data-with-xarray.md"
+    - "Globbing": "user-guide/globbing.md"
   - "API":
       - Glob: "api/glob.md"
       - Protocols: "api/protocols.md"
