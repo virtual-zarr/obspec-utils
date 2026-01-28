@@ -1,73 +1,79 @@
-# Finding files matching patterns in cloud storage
+# Finding Files on Cloud Storage
 
-This guide shows how to use `obspec-utils` glob functions to find files matching patterns in cloud storage.
+This guide shows how to discover and list files stored in cloud object storage.
 
-## Overview
+## Listing Files in a Directory
 
-The `glob` function works similarly to Python's `pathlib.glob()` or `glob.glob()`, but operates on object stores. It efficiently lists objects matching a pattern by extracting the longest literal prefix for server-side filtering.
+To see what files exist in a specific location, use the store's `list()` method with a prefix:
 
-## Quick Start
-
-This example finds NetCDF files in the [NASA Earth Exchange (NEX) Data Collection](https://registry.opendata.aws/nasanex/) on AWS Open Data:
-
-```python exec="on" source="above" session="glob" result="code"
+```python exec="on" source="above" session="find" result="code"
 from obstore.store import S3Store
-from obspec_utils import glob
 
-# Access public AWS Open Data (no credentials needed)
+# Access public AWS Open Data
 store = S3Store(
     bucket="nasanex",
     aws_region="us-west-2",
-    skip_signature=True,  # Anonymous access
+    skip_signature=True,
 )
 
-# Find all NetCDF files for a specific model/year
+# List files in a specific directory
+prefix = "NEX-GDDP/BCSD/rcp85/day/atmos/tasmax/r1i1p1/v1.0/"
+files = []
+for chunk in store.list(prefix=prefix):
+    files.extend(chunk)
+
+print(f"Found {len(files)} files in {prefix}")
+print(f"\nFirst 5 files:")
+for f in files[:5]:
+    print(f"  {f['path'].split('/')[-1]}")
+```
+
+## Finding Files Matching a Pattern
+
+When you need files matching specific criteria (e.g., all files from year 2100), use `glob`:
+
+```python exec="on" source="above" session="find" result="code"
+from obspec_utils import glob
+
+# Find all NetCDF files for year 2100
 paths = list(glob(store, "NEX-GDDP/BCSD/rcp85/day/atmos/tasmax/r1i1p1/v1.0/*_2100.nc"))
-print(f"Found {len(paths)} files:")
-for path in paths[:5]:  # Show first 5
-    print(f"  {path}")
+print(f"Found {len(paths)} files for 2100:")
+for path in paths[:5]:
+    print(f"  {path.split('/')[-1]}")
 ```
 
-## Pattern Syntax
+### Pattern Syntax
 
-The glob functions support standard glob patterns:
+| Pattern | Matches | Example |
+|---------|---------|---------|
+| `*` | Any characters in one segment | `*_2100.nc` matches any model for 2100 |
+| `**` | Any number of segments | `data/**/*.nc` matches all .nc files recursively |
+| `?` | Exactly one character | `*_209?.nc` matches 2090-2099 |
+| `[abc]` | Any character in set | `*_209[012].nc` matches 2090, 2091, 2092 |
+| `[a-z]` | Any character in range | `*_209[0-5].nc` matches 2090-2095 |
+| `[!abc]` | Any character NOT in set | `*_209[!9].nc` excludes 2099 |
 
-| Pattern | Matches |
-|---------|---------|
-| `*` | Any characters within a single path segment |
-| `**` | Any number of path segments (recursive) |
-| `?` | Exactly one character |
-| `[abc]` | Any character in the set |
-| `[a-z]` | Any character in the range |
-| `[!abc]` | Any character NOT in the set |
+### More Pattern Examples
 
-### Examples
-
-```python exec="on" source="above" session="glob" result="code"
-# Single wildcard: match files for different climate models in 2100
-paths = list(glob(store, "NEX-GDDP/BCSD/rcp85/day/atmos/tasmax/r1i1p1/v1.0/*_inmcm4_2100.nc"))
-print(f"Single wildcard (*): {len(paths)} files")
-for p in paths[:3]:
-    print(f"  {p.split('/')[-1]}")
-
-# Question mark: match files for years 2096-2099
+```python exec="on" source="above" session="find" result="code"
+# Match a range of years (2096-2099) using ?
 paths = list(glob(store, "NEX-GDDP/BCSD/rcp85/day/atmos/tasmax/r1i1p1/v1.0/*_inmcm4_209?.nc"))
-print(f"\nSingle character (?): {len(paths)} files")
-for p in paths:
+print(f"Years 2090-2099: {len(paths)} files")
+for p in paths[-4:]:  # Show last 4 (2096-2099)
     print(f"  {p.split('/')[-1]}")
 
-# Character range: match specific years using [0-5] for 2090-2095
-paths = list(glob(store, "NEX-GDDP/BCSD/rcp85/day/atmos/tasmax/r1i1p1/v1.0/*_inmcm4_209[0-5].nc"))
-print(f"\nCharacter range ([0-5]): {len(paths)} files")
+# Match specific years using character range
+paths = list(glob(store, "NEX-GDDP/BCSD/rcp85/day/atmos/tasmax/r1i1p1/v1.0/*_inmcm4_209[5-9].nc"))
+print(f"\nYears 2095-2099: {len(paths)} files")
 for p in paths:
     print(f"  {p.split('/')[-1]}")
 ```
 
-## Getting Object Metadata
+## Getting File Sizes and Dates
 
-Use `glob_objects` to get full metadata (size, last modified, etc.) instead of just paths:
+To get metadata (size, last modified time) along with paths, use `glob_objects`:
 
-```python exec="on" source="above" session="glob" result="code"
+```python exec="on" source="above" session="find" result="code"
 from obspec_utils import glob_objects
 
 # Get metadata for matching files
@@ -75,44 +81,69 @@ objects = list(glob_objects(store, "NEX-GDDP/BCSD/rcp85/day/atmos/tasmax/r1i1p1/
 
 # Calculate total size
 total_bytes = sum(obj["size"] for obj in objects)
-print(f"Total size: {total_bytes / 1e9:.2f} GB across {len(objects)} files")
+print(f"Total: {total_bytes / 1e9:.2f} GB across {len(objects)} files")
 
-# Show details for first file
-if objects:
-    obj = objects[0]
-    print(f"\nFirst file:")
-    print(f"  Path: {obj['path']}")
-    print(f"  Size: {obj['size'] / 1e6:.1f} MB")
-    print(f"  Last modified: {obj['last_modified']}")
+# Show details for a few files
+print(f"\nSample files:")
+for obj in objects[:3]:
+    print(f"  {obj['path'].split('/')[-1]}")
+    print(f"    Size: {obj['size'] / 1e6:.1f} MB")
+    print(f"    Modified: {obj['last_modified'].date()}")
+```
+
+## Improving Performance
+
+Listing files in cloud storage requires network requests. The more files the server needs to enumerate, the slower the operation. Here's how to keep searches fast.
+
+### Use Specific Prefixes
+
+The `glob` function automatically extracts the longest literal prefix from your pattern to minimize the files the server must enumerate:
+
+| Pattern | Server lists from | Files enumerated |
+|---------|-------------------|------------------|
+| `data/2024/january/*.nc` | `data/2024/january/` | Only January files |
+| `data/2024/*/*.nc` | `data/2024/` | All of 2024 |
+| `data/**/*.nc` | `data/` | Everything under data/ |
+| `**/*.nc` | (root) | Entire bucket |
+
+Move literal path segments before wildcards when possible:
+
+```python
+# Slower: wildcard early means listing more files
+glob(store, "NEX-GDDP/**/tasmax/**/v1.0/*_2100.nc")
+
+# Faster: specific prefix narrows the listing
+glob(store, "NEX-GDDP/BCSD/rcp85/day/atmos/tasmax/r1i1p1/v1.0/*_2100.nc")
+```
+
+### Process Results Lazily
+
+Both `glob` and `glob_objects` return iterators, so you can process results as they arrive without loading all paths into memory:
+
+```python exec="on" source="above" session="find" result="code"
+# Stop after finding 3 files (doesn't load all results)
+count = 0
+for path in glob(store, "NEX-GDDP/BCSD/rcp85/day/atmos/tasmax/r1i1p1/v1.0/*_2100.nc"):
+    print(f"Found: {path.split('/')[-1]}")
+    count += 1
+    if count >= 3:
+        break
 ```
 
 ## Async Usage
 
 For async contexts, use `glob_async` and `glob_objects_async`:
 
-```python exec="on" source="above" session="glob" result="code"
+```python exec="on" source="above" session="find" result="code"
 import asyncio
 from obspec_utils import glob_async
 
-async def find_files():
+async def find_recent_years():
     paths = []
     async for path in glob_async(store, "NEX-GDDP/BCSD/rcp85/day/atmos/tasmax/r1i1p1/v1.0/*_inmcm4_209?.nc"):
         paths.append(path)
     return paths
 
-# Run the async function
-paths = asyncio.run(find_files())
-print(f"Found {len(paths)} files asynchronously:")
-for p in paths:
-    print(f"  {p.split('/')[-1]}")
+paths = asyncio.run(find_recent_years())
+print(f"Found {len(paths)} files asynchronously")
 ```
-
-## Performance Tips
-
-The glob functions automatically extract the longest literal prefix from patterns to minimize the number of objects listed from the store:
-
-- `data/2024/**/*.nc` lists from prefix `data/2024/`
-- `data/*.nc` lists from prefix `data/`
-- `**/*.nc` lists from the root (no prefix filtering)
-
-For best performance, make your patterns as specific as possible at the start.
