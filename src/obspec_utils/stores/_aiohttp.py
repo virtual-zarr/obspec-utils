@@ -582,7 +582,9 @@ class AiohttpStore(ReadableStore):
         url = self._build_url(path)
         request_headers = {} if self._session else dict(self.headers)
 
-        async with session.head(url, headers=request_headers) as response:
+        async with session.head(
+            url, allow_redirects=True, headers=request_headers
+        ) as response:
             response.raise_for_status()
             return self._parse_meta_from_headers(path, dict(response.headers))
 
