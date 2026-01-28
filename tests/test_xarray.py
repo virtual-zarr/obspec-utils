@@ -52,3 +52,41 @@ def test_eager_reader_xarray_http_store():
 
     # Verify closed is True after context exit
     assert reader.closed is True
+
+
+@pytest.mark.network
+def test_readme_example():
+    """
+    Test the example from the README frontpage.
+
+    Uses ERA5 data from the NSF-NCAR public S3 bucket.
+    Verifies output matches fsspec.
+    """
+    import s3fs
+    from obstore.store import S3Store
+
+    bucket = "nsf-ncar-era5"
+    path = (
+        "e5.oper.an.pl/202501/e5.oper.an.pl.128_060_pv.ll025sc.2025010100_2025010123.nc"
+    )
+
+    store = S3Store(
+        bucket=bucket,
+        aws_region="us-west-2",
+        skip_signature=True,
+    )
+    fs = s3fs.S3FileSystem(anon=True)
+
+    with (
+        fs.open(f"{bucket}/{path}") as f,
+        BlockStoreReader(store, path) as reader,
+        xr.open_dataset(f, engine="h5netcdf") as ds_fsspec,
+        xr.open_dataset(reader, engine="h5netcdf") as ds_obspec,
+    ):
+        # Compare indexes
+        assert list(ds_fsspec.indexes) == list(ds_obspec.indexes)
+        # Load just one point to verify data access
+        var = list(ds_obspec.data_vars)[0]
+        subset_fsspec = ds_fsspec[var].isel({d: 0 for d in ds_fsspec[var].dims})
+        subset_obspec = ds_obspec[var].isel({d: 0 for d in ds_obspec[var].dims})
+        xr.testing.assert_equal(subset_fsspec, subset_obspec)
