@@ -28,16 +28,20 @@ pip install obspec-utils
 ```python
 import xarray as xr
 from obstore.store import S3Store
-from obspec_utils.readers import BlockStoreReader
+from obspec_utils.glob import glob
+from obspec_utils.readers import EagerStoreReader
 
 store = S3Store(
-    bucket="nsf-ncar-era5",
+    bucket="its-live-data",
     aws_region="us-west-2",
     skip_signature=True,
 )
 
-with BlockStoreReader(store, "e5.oper.an.pl/202501/e5.oper.an.pl.128_060_pv.ll025sc.2025010100_2025010123.nc") as reader:
-    ds = xr.open_dataset(reader, engine="h5netcdf")
+# Find NetCDF files matching a pattern
+files = glob(store, "NSIDC/velocity_image_pair_sample/landsatOLI/v02/N20E080/*.nc")
+path = next(files)
+
+with EagerStoreReader(store, path) as reader, xr.open_dataset(reader, engine="h5netcdf") as ds:
     print(ds)
 ```
 
