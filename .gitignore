@@ -82,3 +82,6 @@ site/*
 
 # uv lock files
 uv.lock
+
+# script output
+*.html
