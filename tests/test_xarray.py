@@ -52,3 +52,37 @@ def test_eager_reader_xarray_http_store():
 
     # Verify closed is True after context exit
     assert reader.closed is True
+
+
+@pytest.mark.network
+def test_readme_example():
+    """
+    Test the example from the README frontpage.
+
+    Uses ITS_LIVE velocity data from a public S3 bucket.
+    Verifies output matches fsspec.
+    """
+    import s3fs
+    from obstore.store import S3Store
+    from obspec_utils.glob import glob
+
+    bucket = "its-live-data"
+    store = S3Store(
+        bucket=bucket,
+        aws_region="us-west-2",
+        skip_signature=True,
+    )
+
+    # Find NetCDF files matching a pattern
+    files = glob(store, "NSIDC/velocity_image_pair_sample/landsatOLI/v02/N20E080/*.nc")
+    path = files[0]
+
+    fs = s3fs.S3FileSystem(anon=True)
+
+    with (
+        fs.open(f"{bucket}/{path}") as f,
+        EagerStoreReader(store, path) as reader,
+        xr.open_dataset(f, engine="h5netcdf") as ds_fsspec,
+        xr.open_dataset(reader, engine="h5netcdf") as ds_obspec,
+    ):
+        xr.testing.assert_allclose(ds_fsspec.load(), ds_obspec.load())
