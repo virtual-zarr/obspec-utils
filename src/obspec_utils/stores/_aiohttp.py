@@ -26,10 +26,11 @@ async with AiohttpStore("https://example.com/data") as store:
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Iterator, Sequence
+import threading
+from collections.abc import AsyncIterator, Coroutine, Iterator, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 from obspec import GetResult, GetResultAsync
 
@@ -37,6 +38,8 @@ from obspec_utils.protocols import ReadableStore
 
 if TYPE_CHECKING:
     from obspec import Attributes, GetOptions, ObjectMeta
+
+T = TypeVar("T")
 
 try:
     import aiohttp
@@ -196,6 +199,10 @@ class AiohttpStore(ReadableStore):
         self.headers = headers or {}
         self.timeout = aiohttp.ClientTimeout(total=timeout)
         self._session: aiohttp.ClientSession | None = None
+        # Event loop for sync methods when called from async context (e.g., Jupyter)
+        self._sync_loop: asyncio.AbstractEventLoop | None = None
+        self._sync_thread: threading.Thread | None = None
+        self._sync_lock = threading.Lock()
 
     async def __aenter__(self) -> "AiohttpStore":
         """Enter the async context manager, creating a reusable session."""
@@ -210,6 +217,52 @@ class AiohttpStore(ReadableStore):
         if self._session is not None:
             await self._session.close()
             self._session = None
+
+    def _get_sync_loop(self) -> asyncio.AbstractEventLoop:
+        """Get or create event loop for sync operations when inside a running loop."""
+        if self._sync_loop is None:
+            with self._sync_lock:
+                if self._sync_loop is None:
+                    loop = asyncio.new_event_loop()
+                    thread = threading.Thread(
+                        target=loop.run_forever,
+                        name=f"aiohttp_store_{id(self)}",
+                        daemon=True,
+                    )
+                    thread.start()
+                    self._sync_loop = loop
+                    self._sync_thread = thread
+        return self._sync_loop
+
+    def _run_sync(self, coro: Coroutine[None, None, T]) -> T:
+        """Run coroutine synchronously, handling nested event loops (e.g., Jupyter)."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # No running loop - use asyncio.run() directly
+            return asyncio.run(coro)
+
+        # Inside running loop - use store's dedicated loop
+        loop = self._get_sync_loop()
+        future = asyncio.run_coroutine_threadsafe(coro, loop)
+        return future.result()
+
+    def _cleanup_sync_loop(self) -> None:
+        """Stop the sync loop and thread."""
+        if self._sync_loop is not None:
+            self._sync_loop.call_soon_threadsafe(self._sync_loop.stop)
+            if self._sync_thread is not None:
+                self._sync_thread.join(timeout=1.0)
+            self._sync_loop = None
+            self._sync_thread = None
+
+    def close(self) -> None:
+        """Close the store and release resources."""
+        self._cleanup_sync_loop()
+
+    def __del__(self) -> None:
+        """Clean up on garbage collection."""
+        self._cleanup_sync_loop()
 
     def _build_url(self, path: str) -> str:
         """Build the full URL from base URL and path."""
@@ -497,7 +550,7 @@ class AiohttpStore(ReadableStore):
         AiohttpGetResult
             Result object with buffer() method and metadata.
         """
-        result = asyncio.run(self.get_async(path, options=options))
+        result = self._run_sync(self.get_async(path, options=options))
         return AiohttpGetResult(
             _data=result._data,
             _meta=result._meta,
@@ -534,7 +587,7 @@ class AiohttpStore(ReadableStore):
         bytes
             The requested byte range.
         """
-        return asyncio.run(
+        return self._run_sync(
             self.get_range_async(path, start=start, end=end, length=length)
         )
 
@@ -567,7 +620,7 @@ class AiohttpStore(ReadableStore):
         Sequence[bytes]
             The requested byte ranges.
         """
-        return asyncio.run(
+        return self._run_sync(
             self.get_ranges_async(path, starts=starts, ends=ends, lengths=lengths)
         )
 
@@ -627,7 +680,7 @@ class AiohttpStore(ReadableStore):
         ObjectMeta
             File metadata including size, last_modified, e_tag, etc.
         """
-        return asyncio.run(self.head_async(path))
+        return self._run_sync(self.head_async(path))
 
 
 __all__ = ["AiohttpStore", "AiohttpGetResult", "AiohttpGetResultAsync"]

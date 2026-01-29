@@ -657,3 +657,81 @@ def test_head_sync(minio_test_file):
     assert meta["path"] == minio_test_file["path"]
     assert meta["e_tag"] is not None
     assert meta["last_modified"] is not None
+
+
+# --- Nested Event Loop Handling (Jupyter compatibility) ---
+
+
+@requires_minio
+@pytest.mark.asyncio
+async def test_sync_methods_from_running_loop(minio_test_file):
+    """
+    Sync methods work when called from within a running event loop.
+
+    This simulates the Jupyter notebook environment where an event loop
+    is already running. The per-store event loop design handles this by
+    creating a dedicated thread with its own event loop for sync operations.
+    """
+    store = AiohttpStore(minio_test_file["base_url"])
+
+    # We're inside an async function, so there's a running event loop.
+    # Calling sync methods would fail with asyncio.run() but should
+    # work with the per-store event loop implementation.
+    try:
+        # Test head (sync)
+        meta = store.head(minio_test_file["path"])
+        assert meta["size"] == len(minio_test_file["content"])
+
+        # Test get (sync)
+        result = store.get(minio_test_file["path"])
+        assert result.buffer() == minio_test_file["content"]
+
+        # Test get_range (sync)
+        data = store.get_range(minio_test_file["path"], start=0, length=5)
+        assert bytes(data) == b"01234"
+
+        # Test get_ranges (sync)
+        results = store.get_ranges(
+            minio_test_file["path"], starts=[0, 10], lengths=[5, 6]
+        )
+        assert [bytes(r) for r in results] == [b"01234", b"ABCDEF"]
+
+    finally:
+        store.close()
+
+
+def test_sync_loop_not_created_outside_async():
+    """Sync loop is not created when not inside a running event loop."""
+    store = AiohttpStore("https://example.com")
+
+    # Before any sync call
+    assert store._sync_loop is None
+    assert store._sync_thread is None
+
+    # close() should be safe even if loop was never created
+    store.close()
+    assert store._sync_loop is None
+
+
+@requires_minio
+@pytest.mark.asyncio
+async def test_sync_loop_created_inside_async(minio_test_file):
+    """Sync loop is lazily created when sync method called from async context."""
+    store = AiohttpStore(minio_test_file["base_url"])
+
+    # Before sync call
+    assert store._sync_loop is None
+    assert store._sync_thread is None
+
+    # Call sync method from async context
+    _ = store.head(minio_test_file["path"])
+
+    # Sync loop should now exist
+    assert store._sync_loop is not None
+    assert store._sync_thread is not None
+    assert store._sync_thread.is_alive()
+
+    # Cleanup
+    store.close()
+    assert store._sync_loop is None
+    assert store._sync_thread is None
