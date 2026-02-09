@@ -59,7 +59,7 @@ xarray = [
 ]
 dask = ["dask"]
 fsspec = ["s3fs", "fsspec"]
-dev = ["ipykernel>=6.29.5"]
+dev = ["aiohttp>=3.13.3", "ipykernel>=7"]
 docs = [
     "mkdocs-material[imaging]>=9.6.14",
     "mkdocs>=1.6.1",
@@ -96,4 +96,4 @@ markers = [
 
 [tool.ruff]
 select = ["ALL"]
-ignore = ["EM", "TD"]
+ignore = ["EM", "TD", "TRY003", "FIX002"]
