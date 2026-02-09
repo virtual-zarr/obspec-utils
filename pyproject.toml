@@ -3,10 +3,7 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.sdist]
-exclude = [
-  "/.github",
-  "/docs",
-]
+exclude = ["/.github", "/docs"]
 
 [project]
 name = "obspec-utils"
@@ -17,22 +14,19 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 keywords = []
 authors = [
-  { name = "Max Jones", email = "14077947+maxrjones@users.noreply.github.com" },
+    { name = "Max Jones", email = "14077947+maxrjones@users.noreply.github.com" },
 ]
 classifiers = [
-  "Development Status :: 4 - Beta",
-  "Programming Language :: Python",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13",
-  "Programming Language :: Python :: 3.14",
-  "Programming Language :: Python :: Implementation :: CPython",
-  "Programming Language :: Python :: Implementation :: PyPy",
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = [
-  "obspec",
-  "obstore",
-]
+dependencies = ["obspec"]
 
 [project.urls]
 Documentation = "https://obspec-utils.readthedocs.io"
@@ -55,24 +49,17 @@ test = [
     "s3fs",
 ]
 xarray = [
-  "xarray",
-  "h5netcdf",
-  "h5py",
-  "cftime",
-  "scipy",
-  "rasterio",
-  "rioxarray",
+    "xarray",
+    "h5netcdf",
+    "h5py",
+    "cftime",
+    "scipy",
+    "rasterio",
+    "rioxarray",
 ]
-dask = [
-  "dask",
-]
-fsspec = [
-  "s3fs",
-  "fsspec",
-]
-dev = [
-    "ipykernel>=6.29.5",
-]
+dask = ["dask"]
+fsspec = ["s3fs", "fsspec"]
+dev = ["ipykernel>=6.29.5"]
 docs = [
     "mkdocs-material[imaging]>=9.6.14",
     "mkdocs>=1.6.1",
@@ -94,21 +81,19 @@ hooks.vcs.version-file = "src/obspec_utils/_version.py"
 source_pkgs = ["obspec_utils"]
 branch = true
 parallel = true
-omit = [
-  "src/obspec_utils/__about__.py",
-]
+omit = ["src/obspec_utils/__about__.py"]
 
 [tool.coverage.paths]
 obspec_utils = ["src/obspec_utils", "*/obspec-utils/src/obspec_utils"]
 
 [tool.coverage.report]
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
-]
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [tool.pytest.ini_options]
 markers = [
-  "network: marks tests as requiring network access (run with --network)",
+    "network: marks tests as requiring network access (run with --network)",
 ]
+
+[tool.ruff]
+select = ["ALL"]
+ignore = ["EM", "TD"]
