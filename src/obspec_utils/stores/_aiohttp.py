@@ -237,14 +237,20 @@ class AiohttpStore(GetRangeAsync, GetRangesAsync):
             The requested byte ranges.
 
         """
-        if ends is None and lengths is None:
-            raise ValueError("Either 'ends' or 'lengths' must be provided")
-        if ends is None:
-            ends = [s + ln for s, ln in zip(starts, lengths, strict=False)]  # type: ignore[arg-type]
+        if ends is not None and lengths is not None:
+            raise ValueError("Only one of 'ends' or 'lengths' should be provided")
 
-        # TODO: coalesce ranges
-        tasks = [
-            self.get_range_async(path, start=s, end=e)
-            for s, e in zip(starts, ends, strict=False)
-        ]
+        if ends is not None:
+            tasks = [
+                self.get_range_async(path, start=start, end=end)
+                for start, end in zip(starts, ends, strict=True)
+            ]
+        elif lengths is not None:
+            tasks = [
+                self.get_range_async(path, start=start, length=length)
+                for start, length in zip(starts, lengths, strict=True)
+            ]
+        else:
+            raise ValueError("Either 'ends' or 'lengths' must be provided")
+
         return await asyncio.gather(*tasks)
