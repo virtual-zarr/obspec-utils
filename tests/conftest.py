@@ -3,7 +3,6 @@ import time
 from pathlib import Path
 
 import pytest
-import xarray as xr
 
 
 def pytest_addoption(parser):
@@ -105,6 +104,8 @@ def minio_bucket(container):
 @pytest.fixture
 def local_netcdf4_file(tmp_path: Path) -> str:
     """Create a NetCDF4 file with data in multiple groups."""
+    import xarray as xr
+
     filepath = tmp_path / "test.nc"
     ds1 = xr.DataArray([1, 2, 3], name="foo").to_dataset()
     ds1.to_netcdf(filepath)
